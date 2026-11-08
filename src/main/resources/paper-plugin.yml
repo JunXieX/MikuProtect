@@ -1,0 +1,20 @@
+name: MikuProtect
+version: '${version}'
+main: dev.junxiex.mikuprotect.MikuProtectPlugin
+loader: dev.junxiex.mikuprotect.MikuProtectLoader
+api-version: '26.3'
+folia-supported: true
+softdepend: [ WorldEdit, FastAsyncWorldEdit ]
+dependencies:
+  server:
+    WorldEdit:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    FastAsyncWorldEdit:
+      load: BEFORE
+      required: false
+      join-classpath: true
+authors: [ JunXieX ]
+description: 'MikuProtect - block/container/entity logging, lookup, rollback and restore for Paper and Folia.'
+website: 'https://github.com/JunXieX'

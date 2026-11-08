@@ -1,0 +1,11 @@
+build/
+.gradle/
+.idea/
+*.iml
+run/
+logs/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+# 开发文档只保存在本地，不进入仓库
+docs/
+dev-docs/

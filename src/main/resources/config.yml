@@ -1,0 +1,131 @@
+# MikuProtect 配置文件
+# 修改后执行 /mp reload 生效；storage.type 变更需要重启。
+
+storage:
+  # duckdb 或 mariadb
+  type: duckdb
+  # MariaDB 多服共库保护：抢到写锁的服务端才能启动（DuckDB 由文件锁天然保护）
+  lock-enabled: true
+  lock-timeout-ms: 60000
+  duckdb:
+    file: data/mikuprotect.duckdb
+    memory-limit: 512MB
+    threads: 3
+    max-temp-size: 10GB
+  mariadb:
+    host: 127.0.0.1
+    port: 3306
+    database: mikuprotect
+    username: root
+    password: ""
+    pool-size: 6
+
+recording:
+  queue-capacity: 50000
+  batch-size: 1000
+  flush-interval-ms: 500
+  # 数据库写入失败或关服残留时写本地 WAL，下次启动重放
+  wal-enabled: true
+  # 同一容器/动作/玩家在窗口内的重复槽位变更合并为一条记录
+  aggregate-containers: true
+  container-aggregation-window-ms: 1000
+  ignore-creative: false
+  # 留空表示记录所有世界
+  worlds: []
+  max-message-length: 256
+  # 额外禁用项，例如 [ block-burn, block-fade ]
+  disabled-actions: []
+
+  # 以下开关默认全部开启，覆盖方块、容器、实体、玩家与消息。
+  # 红石相关：pistons、dispensers、block-movement、hopper-transactions 建议保持开启。
+  log-block-place: true
+  log-block-break: true
+  log-block-burn: true
+  log-block-fade: true
+  log-block-form: true
+  log-block-spread: true
+  log-block-ignite: true
+  log-block-movement: true
+  log-pistons: true
+  log-dispensers: true
+  log-explosions: true
+  log-entity-change: true
+  log-buckets: true
+  log-leaf-decay: true
+  log-tree-growth: true
+  log-mushroom-growth: true
+  log-vine-growth: true
+  log-sculk-spread: true
+  log-portals: true
+  log-water-flow: true
+  log-lava-flow: true
+  log-liquid-tracking: true
+  log-fertilize: true
+  log-structure-growth: true
+
+  log-container-transactions: true
+  log-hopper-transactions: true
+  log-item-transactions: true
+  log-item-drops: true
+  log-item-pickups: true
+
+  log-entity-spawns: true
+  log-entity-kills: true
+  log-entity-explosions: true
+  log-player-kills: true
+  log-player-deaths: true
+
+  log-player-interactions: true
+  log-player-messages: true
+  log-player-commands: true
+  log-player-sessions: true
+  log-sign-text: true
+  log-username-changes: true
+  log-worldedit: true
+  # 单次 WorldEdit 编辑最多记录多少方块，0 表示不限制
+  worldedit-max-blocks: 100000
+
+lookup:
+  default-radius: 10
+  max-radius: 100
+  default-since: 3d
+  page-size: 10
+  max-page-size: 100
+  throttle-ms: 100
+
+rollback:
+  max-rows: 200000
+  budget-ms: 25
+  min-budget-ms: 10
+  max-budget-ms: 50
+  chunk-prefetch: 4
+  # false 时按精确状态恢复，不触发连锁物理；红石机器建议保持 false。
+  apply-physics: false
+  # true 时在区块恢复后对红石元件做一次受控唤醒；可能触发连锁，默认关闭。
+  redstone-refresh: false
+  max-radius: 100
+
+purge:
+  auto-enabled: false
+  auto-days: 30
+  batch-size: 5000
+
+web:
+  # 只读 HTTP API，默认关闭
+  enabled: false
+  bind: 127.0.0.1
+  port: 4040
+  # 必须修改；为空则 Web 服务不启动
+  api-key: ""
+  max-results: 100
+  # 每个来源 IP 每分钟请求数，0 表示不限制
+  rate-limit-per-minute: 120
+  rate-limit-burst: 30
+
+alerts:
+  enabled: true
+  block-break:
+    - DIAMOND_ORE
+    - DEEPSLATE_DIAMOND_ORE
+    - ANCIENT_DEBRIS
+  permission: mikuprotect.alerts
