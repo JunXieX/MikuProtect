@@ -38,7 +38,35 @@ public final class WorldEditIntegration {
     }
 
     public void register() {
+        allowFaweExtent();
         WorldEdit.getInstance().getEventBus().register(this);
+    }
+
+    /**
+     * FAWE rejects third-party extents unless their package is listed in
+     * Settings.EXTENT.ALLOWED_PLUGINS. Add ourselves in-memory before any edit session is built;
+     * otherwise FAWE silently drops the recording wrapper and bulk edits lose records.
+     */
+    private void allowFaweExtent() {
+        try {
+            Class<?> settingsClass = Class.forName("com.fastasyncworldedit.core.configuration.Settings");
+            Object settings = settingsClass.getMethod("settings").invoke(null);
+            Object extent = settingsClass.getField("EXTENT").get(settings);
+            java.lang.reflect.Field allowed = extent.getClass().getField("ALLOWED_PLUGINS");
+            Object value = allowed.get(extent);
+            if (value instanceof java.util.List<?> list) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> entries = (java.util.List<String>) list;
+                if (entries.stream().noneMatch(entry -> entry.contains("dev.junxiex.mikuprotect"))) {
+                    entries.add("dev.junxiex.mikuprotect");
+                    plugin.getLogger().info("FAWE extent whitelist extended for MikuProtect");
+                }
+            }
+        } catch (ClassNotFoundException ignored) {
+            // plain WorldEdit
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            plugin.getLogger().warning("FAWE extent whitelist update failed: " + exception);
+        }
     }
 
     public void unregister() {
