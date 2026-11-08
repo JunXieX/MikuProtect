@@ -27,17 +27,22 @@ public final class PurgeService {
             future.completeExceptionally(new IllegalStateException("A purge is already running"));
             return future;
         }
-        Scheduler.async(() -> {
-            try {
-                int removed = storage.purge(before, world, user);
-                future.complete(removed);
-            } catch (Exception exception) {
-                plugin.getLogger().warning("Purge failed: " + exception.getMessage());
-                future.completeExceptionally(exception);
-            } finally {
-                running.set(false);
-            }
-        });
+        try {
+            Scheduler.async(() -> {
+                try {
+                    int removed = storage.purge(before, world, user);
+                    future.complete(removed);
+                } catch (Exception exception) {
+                    plugin.getLogger().warning("Purge failed: " + exception.getMessage());
+                    future.completeExceptionally(exception);
+                } finally {
+                    running.set(false);
+                }
+            });
+        } catch (RuntimeException exception) {
+            running.set(false);
+            future.completeExceptionally(exception);
+        }
         return future;
     }
 }

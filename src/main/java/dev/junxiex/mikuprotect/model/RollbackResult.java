@@ -20,7 +20,12 @@ public final class RollbackResult {
         applied += other.applied;
         skipped += other.skipped;
         failed += other.failed;
-        errors.addAll(other.errors);
+        for (String error : other.errors) {
+            if (errors.size() >= 20) {
+                break;
+            }
+            errors.add(error);
+        }
         changes.addAll(other.changes);
         completed = completed && other.completed;
     }

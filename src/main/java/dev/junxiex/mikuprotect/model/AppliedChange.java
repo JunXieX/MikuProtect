@@ -24,19 +24,4 @@ public record AppliedChange(
         UUID entityUuid,
         boolean removeEntity) {
 
-    public boolean blockChange() {
-        return afterBlockData != null;
-    }
-
-    public boolean itemChange() {
-        return slot >= 0;
-    }
-
-    public boolean textChange() {
-        return afterText != null;
-    }
-
-    public boolean entityChange() {
-        return entityType != null || entityUuid != null;
-    }
 }

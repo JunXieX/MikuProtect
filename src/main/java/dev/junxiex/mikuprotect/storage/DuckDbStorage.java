@@ -9,6 +9,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -125,10 +126,27 @@ public final class DuckDbStorage extends JdbcStorage {
 
     @Override
     protected void shutdown() {
-        closeQuietly(readConnection);
-        closeQuietly(writeConnection);
-        readConnection = null;
-        writeConnection = null;
+        boolean write = false;
+        boolean read = false;
+        try {
+            write = writeLock.tryLock(2, TimeUnit.SECONDS);
+            read = readLock.tryLock(2, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            closeQuietly(readConnection);
+            closeQuietly(writeConnection);
+            readConnection = null;
+            writeConnection = null;
+        } finally {
+            if (read) {
+                readLock.unlock();
+            }
+            if (write) {
+                writeLock.unlock();
+            }
+        }
     }
 
     /** 文件路径按需建目录，最终统一成绝对路径交给驱动。 */

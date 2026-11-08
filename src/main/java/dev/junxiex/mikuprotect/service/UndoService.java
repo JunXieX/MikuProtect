@@ -20,15 +20,7 @@ public final class UndoService {
         lastChanges.put(actor, List.copyOf(changes));
     }
 
-    public List<AppliedChange> peek(UUID actor) {
-        return lastChanges.get(actor);
-    }
-
     public List<AppliedChange> take(UUID actor) {
         return lastChanges.remove(actor);
-    }
-
-    public void clear(UUID actor) {
-        lastChanges.remove(actor);
     }
 }

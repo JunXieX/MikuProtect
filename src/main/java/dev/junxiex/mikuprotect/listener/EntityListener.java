@@ -90,7 +90,8 @@ public final class EntityListener implements Listener {
             return;
         }
         byte[] snapshot = null;
-        if (!(entity instanceof Player)) {
+        // Only ENTITY_KILL needs the payload to respawn the entity; spawn/interact are high volume.
+        if (action == ActionType.ENTITY_KILL && !(entity instanceof Player)) {
             try {
                 snapshot = org.bukkit.Bukkit.getUnsafe().serializeEntity(entity);
             } catch (RuntimeException ignored) {

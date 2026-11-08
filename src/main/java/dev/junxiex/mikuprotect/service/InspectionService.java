@@ -21,7 +21,7 @@ import org.bukkit.entity.Player;
 public final class InspectionService {
 
     private final MikuProtectPlugin plugin;
-    private final MikuConfig config;
+    private volatile MikuConfig config;
     private final LookupService lookup;
     private final Set<UUID> enabled = ConcurrentHashMap.newKeySet();
 
@@ -29,6 +29,12 @@ public final class InspectionService {
         this.plugin = plugin;
         this.config = config;
         this.lookup = lookup;
+    }
+
+    public void updateConfig(MikuConfig next) {
+        if (next != null) {
+            this.config = next;
+        }
     }
 
     public boolean toggle(Player player) {

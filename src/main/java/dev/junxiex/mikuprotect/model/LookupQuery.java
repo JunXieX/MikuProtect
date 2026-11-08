@@ -33,6 +33,30 @@ public final class LookupQuery {
         return new LookupQuery();
     }
 
+    /** Snapshot for asynchronous callers; the rollback engine rewrites page/limit. */
+    public LookupQuery copy() {
+        LookupQuery copy = new LookupQuery();
+        copy.worldName = worldName;
+        copy.userName = userName;
+        copy.actions = new LinkedHashSet<>(actions);
+        copy.excludedActions = new LinkedHashSet<>(excludedActions);
+        copy.material = material;
+        copy.entityType = entityType;
+        copy.since = since;
+        copy.before = before;
+        copy.radius = radius;
+        copy.centerWorld = centerWorld;
+        copy.centerX = centerX;
+        copy.centerY = centerY;
+        copy.centerZ = centerZ;
+        copy.page = page;
+        copy.limit = limit;
+        copy.ascending = ascending;
+        copy.search = search;
+        copy.ids = ids == null ? null : List.copyOf(ids);
+        return copy;
+    }
+
     public LookupQuery world(String value) {
         this.worldName = value;
         return this;
@@ -115,15 +139,7 @@ public final class LookupQuery {
         return this;
     }
 
-    public long offset() {
-        return (long) (page - 1) * Math.max(1, limit);
-    }
-
     public boolean hasRadius() {
-        return radius >= 0 && centerX != null;
-    }
-
-    public boolean hasActions() {
-        return !actions.isEmpty();
+        return radius >= 0 && centerX != null && centerZ != null;
     }
 }

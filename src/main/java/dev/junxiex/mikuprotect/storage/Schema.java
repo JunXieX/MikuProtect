@@ -85,13 +85,6 @@ public final class Schema {
                 k VARCHAR(32) PRIMARY KEY,
                 v VARCHAR(64)
             )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS mp_lock (
-                id TINYINT PRIMARY KEY,
-                owner VARCHAR(64),
-                heartbeat BIGINT
-            )
             """);
 
     private static final List<String> DUCKDB_INDEXES = List.of(
@@ -177,14 +170,6 @@ public final class Schema {
                 k VARCHAR(32) NOT NULL,
                 v VARCHAR(64),
                 PRIMARY KEY (k)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS mp_lock (
-                id TINYINT NOT NULL,
-                owner VARCHAR(64),
-                heartbeat BIGINT,
-                PRIMARY KEY (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
 

@@ -48,6 +48,8 @@ public final class RollbackService {
 
     private final MikuProtectPlugin plugin;
     private final Storage storage;
+    private static final long TASK_TIMEOUT_MS = 5L * 60L * 1000L;
+
     private final Map<UUID, PreviewSession> previews = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> running = new ConcurrentHashMap<>();
 
@@ -63,7 +65,9 @@ public final class RollbackService {
             future.completeExceptionally(new IllegalStateException("已有回滚/还原任务在运行"));
             return future;
         }
-        Scheduler.async(() -> {
+        watch(actor, future);
+        try {
+            Scheduler.async(() -> {
             try {
                 LookupQuery query = request.query;
                 query.page = 1;
@@ -87,22 +91,44 @@ public final class RollbackService {
                 }
                 future.completeExceptionally(exception);
             }
-        });
+            });
+        } catch (RuntimeException exception) {
+            if (actor != null) {
+                running.remove(actor);
+            }
+            future.completeExceptionally(exception);
+        }
         return future;
     }
 
     public CompletableFuture<RollbackResult> applyPreview(CommandSender sender) {
         CompletableFuture<RollbackResult> future = new CompletableFuture<>();
         UUID actor = actorId(sender);
+        if (actor != null && running.putIfAbsent(actor, Boolean.TRUE) != null) {
+            future.completeExceptionally(new IllegalStateException("已有回滚/还原任务在运行"));
+            return future;
+        }
+        watch(actor, future);
         PreviewSession session = actor == null ? null : previews.remove(actor);
         if (session == null) {
+            if (actor != null) {
+                running.remove(actor);
+            }
             future.completeExceptionally(new IllegalStateException("没有待确认的预览"));
             return future;
         }
         RollbackRequest request = new RollbackRequest(RollbackRequest.Mode.ROLLBACK, new LookupQuery(),
                 sender, plugin.config().rollbackMaxRows, plugin.config().applyPhysics);
-        Scheduler.global(() -> executePlanned(actor, session.planned, request, new RollbackResult(), future,
-                true, true, true));
+        try {
+            Scheduler.global(() -> executePlanned(actor, session.planned, request, new RollbackResult(), future,
+                    true, true, true));
+        } catch (RuntimeException exception) {
+            if (actor != null) {
+                running.remove(actor);
+                previews.put(actor, session);
+            }
+            future.completeExceptionally(exception);
+        }
         return future;
     }
 
@@ -129,8 +155,16 @@ public final class RollbackService {
     public CompletableFuture<RollbackResult> applyUndo(CommandSender sender) {
         CompletableFuture<RollbackResult> future = new CompletableFuture<>();
         UUID actor = actorId(sender);
+        if (actor != null && running.putIfAbsent(actor, Boolean.TRUE) != null) {
+            future.completeExceptionally(new IllegalStateException("已有回滚/还原任务在运行"));
+            return future;
+        }
+        watch(actor, future);
         List<AppliedChange> changes = plugin.undo().take(actor);
         if (changes == null || changes.isEmpty()) {
+            if (actor != null) {
+                running.remove(actor);
+            }
             future.completeExceptionally(new IllegalStateException("没有可撤销的操作"));
             return future;
         }
@@ -144,8 +178,16 @@ public final class RollbackService {
         }
         RollbackRequest request = new RollbackRequest(RollbackRequest.Mode.ROLLBACK, new LookupQuery(),
                 sender, plugin.config().rollbackMaxRows, plugin.config().applyPhysics);
-        Scheduler.global(() -> executePlanned(actor, planned, request, new RollbackResult(), future,
-                false, false, false));
+        try {
+            Scheduler.global(() -> executePlanned(actor, planned, request, new RollbackResult(), future,
+                    false, false, false));
+        } catch (RuntimeException exception) {
+            if (actor != null) {
+                running.remove(actor);
+                plugin.undo().remember(actor, changes);
+            }
+            future.completeExceptionally(exception);
+        }
         return future;
     }
 
@@ -178,7 +220,7 @@ public final class RollbackService {
                     String target = rollback ? row.oldBlockData() : row.blockData();
                     byte[] meta = rollback ? row.oldMeta() : row.meta();
                     planned.add(new PlannedChange(row.id(), row.worldUuid(), row.x(), row.y(), row.z(),
-                            null, null, null, -1, target == null ? "" : target, null, null, false));
+                            null, meta, null, -1, target == null ? "" : target, null, null, false));
                 }
                 case ENTITY -> {
                     boolean remove;
@@ -187,6 +229,11 @@ public final class RollbackService {
                     } else if (row.action() == ActionType.ENTITY_KILL) {
                         remove = !rollback;
                     } else {
+                        result.skipped++;
+                        continue;
+                    }
+                    if (!remove && row.meta() == null) {
+                        // Without a payload, spawning only the type loses villager trades/frame contents.
                         result.skipped++;
                         continue;
                     }
@@ -205,18 +252,22 @@ public final class RollbackService {
             previews.put(actor, new PreviewSession(List.copyOf(planned)));
         }
         if (request.sender instanceof Player player) {
-            for (PlannedChange change : planned) {
-                if (change.targetBlock() == null) {
-                    continue;
+            try {
+                for (PlannedChange change : planned) {
+                    if (change.targetBlock() == null) {
+                        continue;
+                    }
+                    World world = Bukkit.getWorld(change.worldUuid());
+                    if (world == null) {
+                        continue;
+                    }
+                    org.bukkit.block.data.BlockData data = BlockCodec.decode(change.targetBlock());
+                    if (data != null) {
+                        player.sendBlockChange(new Location(world, change.x(), change.y(), change.z()), data);
+                    }
                 }
-                World world = Bukkit.getWorld(change.worldUuid());
-                if (world == null) {
-                    continue;
-                }
-                org.bukkit.block.data.BlockData data = BlockCodec.decode(change.targetBlock());
-                if (data != null) {
-                    player.sendBlockChange(new Location(world, change.x(), change.y(), change.z()), data);
-                }
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("Preview packet update failed: " + exception.getMessage());
             }
         }
         result.applied = planned.size();
@@ -244,29 +295,56 @@ public final class RollbackService {
             chunks.computeIfAbsent(key, ignored -> new ChunkWork(change.worldUuid(), change.x() >> 4,
                     change.z() >> 4)).changes.add(change);
         }
-        AtomicInteger remaining = new AtomicInteger(chunks.size());
-        for (ChunkWork work : chunks.values()) {
+        List<ChunkWork> works = new ArrayList<>(chunks.values());
+        AtomicInteger remaining = new AtomicInteger(works.size());
+        for (ChunkWork work : works) {
             World world = Bukkit.getWorld(work.worldUuid);
             if (world == null) {
+                work.result.failed += work.changes.size();
+                work.result.completed = true;
                 if (remaining.decrementAndGet() == 0) {
-                    finish(actor, request, result, future, rememberUndo);
+                    mergeAndFinish(works, result, actor, request, future, rememberUndo);
                 }
                 continue;
             }
             Location anchor = new Location(world, work.chunkX << 4, 64, work.chunkZ << 4);
-            Scheduler.at(anchor, () -> runChunk(work, request, result, remaining, future,
+            Scheduler.at(anchor, () -> runChunk(work, works, request, result, remaining, future,
                     markState, stateValue, rememberUndo, actor));
         }
     }
 
-    private void runChunk(ChunkWork work, RollbackRequest request, RollbackResult result, AtomicInteger remaining,
-            CompletableFuture<RollbackResult> future, boolean markState, boolean stateValue, boolean rememberUndo,
-            UUID actor) {
+    private void watch(UUID actor, CompletableFuture<RollbackResult> future) {
+        try {
+            Scheduler.asyncDelayed(() -> {
+                if (!future.isDone()) {
+                    if (actor != null) {
+                        running.remove(actor);
+                    }
+                    future.completeExceptionally(new IllegalStateException("回滚任务超时，目标区块可能未加载"));
+                }
+            }, TASK_TIMEOUT_MS);
+        } catch (RuntimeException ignored) {
+            // scheduler unavailable during shutdown; normal completion handles the future
+        }
+    }
+
+    private void mergeAndFinish(List<ChunkWork> works, RollbackResult result, UUID actor,
+            RollbackRequest request, CompletableFuture<RollbackResult> future, boolean rememberUndo) {
+        for (ChunkWork work : works) {
+            result.merge(work.result);
+        }
+        finish(actor, request, result, future, rememberUndo);
+    }
+
+    private void runChunk(ChunkWork work, List<ChunkWork> works, RollbackRequest request,
+            RollbackResult result, AtomicInteger remaining, CompletableFuture<RollbackResult> future,
+            boolean markState, boolean stateValue, boolean rememberUndo, UUID actor) {
         World world = Bukkit.getWorld(work.worldUuid);
         if (world == null) {
-            result.failed += work.changes.size() - work.index;
+            work.result.failed += work.changes.size() - work.index;
+            work.result.completed = true;
             if (remaining.decrementAndGet() == 0) {
-                finish(actor, request, result, future, rememberUndo);
+                mergeAndFinish(works, result, actor, request, future, rememberUndo);
             }
             return;
         }
@@ -274,7 +352,7 @@ public final class RollbackService {
         while (work.index < work.changes.size()) {
             if (System.nanoTime() >= deadline) {
                 Scheduler.at(new Location(world, work.chunkX << 4, 64, work.chunkZ << 4),
-                        () -> runChunk(work, request, result, remaining, future, markState, stateValue,
+                        () -> runChunk(work, works, request, result, remaining, future, markState, stateValue,
                                 rememberUndo, actor));
                 return;
             }
@@ -282,8 +360,8 @@ public final class RollbackService {
             try {
                 AppliedChange applied = applyChange(world, change, request);
                 if (applied != null) {
-                    result.applied++;
-                    result.changes.add(applied);
+                    work.result.applied++;
+                    work.result.changes.add(applied);
                     work.appliedIds.add(change.activityId());
                     if (plugin.config().redstoneRefresh && change.targetBlock() != null) {
                         org.bukkit.Material material = world.getBlockAt(change.x(), change.y(), change.z()).getType();
@@ -292,12 +370,12 @@ public final class RollbackService {
                         }
                     }
                 } else {
-                    result.skipped++;
+                    work.result.skipped++;
                 }
             } catch (RuntimeException exception) {
-                result.failed++;
-                if (result.errors.size() < 20) {
-                    result.errors.add(change.x() + "," + change.y() + "," + change.z() + ": "
+                work.result.failed++;
+                if (work.result.errors.size() < 20) {
+                    work.result.errors.add(change.x() + "," + change.y() + "," + change.z() + ": "
                             + exception.getMessage());
                 }
             }
@@ -314,8 +392,9 @@ public final class RollbackService {
                 }
             });
         }
+        work.result.completed = true;
         if (remaining.decrementAndGet() == 0) {
-            finish(actor, request, result, future, rememberUndo);
+            mergeAndFinish(works, result, actor, request, future, rememberUndo);
         }
     }
 
@@ -373,8 +452,8 @@ public final class RollbackService {
                 return null;
             }
             block.setBlockData(target, request.applyPhysics);
-            if (change.targetMeta() != null) {
-                TileEntityCodec.apply(block.getState(false), change.targetMeta());
+            if (change.targetMeta() != null && !TileEntityCodec.apply(block.getState(false), change.targetMeta())) {
+                throw new IllegalStateException("tile entity restore failed");
             }
             return new AppliedChange(change.activityId(), change.worldUuid(), change.x(), change.y(), change.z(),
                     beforeData, target.getAsString(), beforeMeta, change.targetMeta(), null, null, -1, null, null,
@@ -403,14 +482,17 @@ public final class RollbackService {
             if (!(state instanceof Sign sign)) {
                 return null;
             }
-            String beforeText = join(sign.getSide(Side.FRONT).getLines());
-            applyText(sign, change.targetText());
-            if (change.targetMeta() != null) {
-                TileEntityCodec.apply(sign, change.targetMeta());
+            String beforeText = signText(sign);
+            byte[] beforeMeta = TileEntityCodec.encode(sign);
+            if (change.targetMeta() != null && !TileEntityCodec.apply(sign, change.targetMeta())) {
+                throw new IllegalStateException("sign tile restore failed");
             }
+            // Text is the authoritative line payload; old/migrated tile meta may not contain lines.
+            applyText(sign, change.targetText());
             sign.update(true, false);
             return new AppliedChange(change.activityId(), change.worldUuid(), change.x(), change.y(), change.z(),
-                    null, null, null, null, null, null, -1, beforeText, change.targetText(), null, null, false);
+                    null, null, beforeMeta, change.targetMeta(), null, null, -1,
+                    beforeText, change.targetText(), null, null, false);
         }
         if (change.entityType() != null || change.entityUuid() != null) {
             Entity existing = findEntity(world, change.entityUuid());
@@ -498,11 +580,13 @@ public final class RollbackService {
         String[] lines = text == null ? new String[0] : text.split("\n", -1);
         for (int index = 0; index < 4; index++) {
             sign.getSide(Side.FRONT).setLine(index, index < lines.length ? lines[index] : "");
+            sign.getSide(Side.BACK).setLine(index, index + 4 < lines.length ? lines[index + 4] : "");
         }
     }
 
-    private static String join(String[] lines) {
-        return String.join("\n", lines);
+    private static String signText(Sign sign) {
+        return String.join("\n", sign.getSide(Side.FRONT).getLines())
+                + "\n" + String.join("\n", sign.getSide(Side.BACK).getLines());
     }
 
     private static final UUID CONSOLE_ACTOR = new UUID(0L, 0L);
@@ -529,6 +613,7 @@ public final class RollbackService {
         private final List<PlannedChange> changes = new ArrayList<>();
         private final List<Long> appliedIds = new ArrayList<>();
         private final List<Location> redstone = new ArrayList<>();
+        private final RollbackResult result = new RollbackResult();
         private int index;
 
         private ChunkWork(UUID worldUuid, int chunkX, int chunkZ) {

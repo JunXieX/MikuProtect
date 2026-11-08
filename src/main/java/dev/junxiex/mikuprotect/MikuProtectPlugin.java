@@ -18,6 +18,7 @@ import dev.junxiex.mikuprotect.storage.Storage;
 import dev.junxiex.mikuprotect.storage.StorageException;
 import dev.junxiex.mikuprotect.util.Scheduler;
 import dev.junxiex.mikuprotect.web.WebService;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -25,7 +26,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
 
     private static MikuProtectPlugin instance;
 
-    private MikuConfig config;
+    private volatile MikuConfig config;
     private Storage storage;
     private RecordingService recording;
     private LookupService lookup;
@@ -38,6 +39,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
     private ListenerRegistrar listenerRegistrar;
     private Object worldEdit;
     private WebService web;
+    private ScheduledTask purgeTask;
     private MikuProtectAPI api;
 
     public static MikuProtectPlugin get() {
@@ -93,22 +95,17 @@ public final class MikuProtectPlugin extends JavaPlugin {
         this.web.start();
 
 
-        if (config.purgeAuto) {
-            long period = 20L * 60L * 60L * 24L;
-            Scheduler.timerGlobal(() -> purge.purge(
-                    System.currentTimeMillis() - config.purgeDays * 24L * 60L * 60L * 1000L, null, null)
-                    .whenComplete((removed, error) -> {
-                        if (error == null) {
-                            getLogger().info("Auto purge removed " + removed + " records");
-                        }
-                    }), 20L * 60L, period);
-        }
+        scheduleAutoPurge();
 
         getLogger().info("MikuProtect enabled with " + storage.type() + "; Folia=" + Scheduler.folia());
     }
 
     @Override
     public void onDisable() {
+        if (purgeTask != null) {
+            purgeTask.cancel();
+            purgeTask = null;
+        }
         if (web != null) {
             web.stop();
             web = null;
@@ -144,6 +141,12 @@ public final class MikuProtectPlugin extends JavaPlugin {
         if (recording != null) {
             recording.updateConfig(next);
         }
+        if (inspection != null) {
+            inspection.updateConfig(next);
+        }
+        if (storage != null) {
+            storage.updateConfig(next);
+        }
         if (listenerRegistrar != null) {
             listenerRegistrar.unregister();
             listenerRegistrar = new ListenerRegistrar(this, next, recording, alerts, storage, inspection);
@@ -159,6 +162,25 @@ public final class MikuProtectPlugin extends JavaPlugin {
         }
         this.web = new WebService(this, next);
         this.web.start();
+        scheduleAutoPurge();
+    }
+
+    private void scheduleAutoPurge() {
+        if (purgeTask != null) {
+            purgeTask.cancel();
+            purgeTask = null;
+        }
+        if (!config.purgeAuto || purge == null) {
+            return;
+        }
+        long period = 20L * 60L * 60L * 24L;
+        purgeTask = Scheduler.timerGlobal(() -> purge.purge(
+                System.currentTimeMillis() - config.purgeDays * 24L * 60L * 60L * 1000L, null, null)
+                .whenComplete((removed, error) -> {
+                    if (error == null) {
+                        getLogger().info("Auto purge removed " + removed + " records");
+                    }
+                }), 20L * 60L, period);
     }
 
     /**

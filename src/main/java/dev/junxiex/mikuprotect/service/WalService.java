@@ -134,8 +134,9 @@ public final class WalService {
 
     private void cleanup() {
         try {
-            Files.move(file, file.resolveSibling(file.getFileName() + ".done"),
-                    StandardCopyOption.REPLACE_EXISTING);
+            java.nio.file.Path done = file.resolveSibling(file.getFileName() + ".done");
+            Files.move(file, done, StandardCopyOption.REPLACE_EXISTING);
+            Files.deleteIfExists(done);
         } catch (IOException exception) {
             try {
                 Files.deleteIfExists(file);

@@ -4,14 +4,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.junxiex.mikuprotect.config.MikuConfig;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -28,9 +21,7 @@ public final class MariaDbStorage extends JdbcStorage {
     private static final long MAX_LIFETIME_MS = 1_800_000L;
     private static final long IDLE_TIMEOUT_MS = 600_000L;
 
-    private final String lockOwner = UUID.randomUUID().toString();
     private volatile HikariDataSource dataSource;
-    private volatile ScheduledExecutorService heartbeat;
 
     /**
      * @param config 配置快照
@@ -78,109 +69,6 @@ public final class MariaDbStorage extends JdbcStorage {
     }
 
     @Override
-    protected void afterSchema() throws StorageException {
-        if (!config.lockEnabled) {
-            return;
-        }
-        try {
-            transaction(connection -> {
-                acquire(connection);
-                return null;
-            });
-        } catch (StorageException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new StorageException("获取 MariaDB 写锁失败: " + exception.getMessage(), exception);
-        }
-        heartbeat = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "MikuProtect-DbLock");
-            thread.setDaemon(true);
-            return thread;
-        });
-        long period = Math.max(5, config.lockTimeoutMs / 4000L);
-        heartbeat.scheduleAtFixedRate(this::beat, period, period, TimeUnit.SECONDS);
-        logger.info("MariaDB 写锁已获取: " + lockOwner);
-    }
-
-    private void acquire(Connection connection) throws SQLException {
-        long now = System.currentTimeMillis();
-        String owner = null;
-        long last = 0L;
-        try (PreparedStatement select = connection.prepareStatement(
-                "SELECT owner, heartbeat FROM mp_lock WHERE id = 1")) {
-            try (ResultSet result = select.executeQuery()) {
-                if (result.next()) {
-                    owner = result.getString(1);
-                    last = result.getLong(2);
-                }
-            }
-        }
-        if (owner == null) {
-            try (PreparedStatement insert = connection.prepareStatement(
-                    "INSERT INTO mp_lock(id, owner, heartbeat) VALUES (1, ?, ?)")) {
-                insert.setString(1, lockOwner);
-                insert.setLong(2, now);
-                insert.executeUpdate();
-            }
-            return;
-        }
-        if (lockOwner.equals(owner)) {
-            touch(connection, now);
-            return;
-        }
-        if (now - last <= config.lockTimeoutMs) {
-            throw new SQLException("数据库正被其他服务端占用 (owner=" + owner + ")");
-        }
-        try (PreparedStatement takeover = connection.prepareStatement(
-                "UPDATE mp_lock SET owner = ?, heartbeat = ? WHERE id = 1 AND owner = ? AND heartbeat = ?")) {
-            takeover.setString(1, lockOwner);
-            takeover.setLong(2, now);
-            takeover.setString(3, owner);
-            takeover.setLong(4, last);
-            if (takeover.executeUpdate() == 0) {
-                throw new SQLException("数据库写锁抢占失败");
-            }
-        }
-    }
-
-    private void beat() {
-        try {
-            transaction(connection -> {
-                touch(connection, System.currentTimeMillis());
-                return null;
-            });
-        } catch (Exception exception) {
-            logger.log(Level.WARNING, "MariaDB 写锁心跳失败", exception);
-        }
-    }
-
-    private void touch(Connection connection, long now) throws SQLException {
-        try (PreparedStatement update = connection.prepareStatement(
-                "UPDATE mp_lock SET heartbeat = ? WHERE id = 1 AND owner = ?")) {
-            update.setLong(1, now);
-            update.setString(2, lockOwner);
-            if (update.executeUpdate() == 0) {
-                throw new SQLException("MariaDB 写锁已丢失");
-            }
-        }
-    }
-
-    private void release() {
-        try {
-            transaction(connection -> {
-                try (PreparedStatement delete = connection.prepareStatement(
-                        "DELETE FROM mp_lock WHERE id = 1 AND owner = ?")) {
-                    delete.setString(1, lockOwner);
-                    delete.executeUpdate();
-                }
-                return null;
-            });
-        } catch (Exception exception) {
-            logger.log(Level.FINE, "MariaDB 写锁释放失败", exception);
-        }
-    }
-
-    @Override
     protected String dialect() {
         return Schema.MARIADB;
     }
@@ -212,14 +100,6 @@ public final class MariaDbStorage extends JdbcStorage {
 
     @Override
     protected void shutdown() {
-        ScheduledExecutorService beat = heartbeat;
-        heartbeat = null;
-        if (beat != null) {
-            beat.shutdownNow();
-        }
-        if (dataSource != null && config.lockEnabled) {
-            release();
-        }
         HikariDataSource source = dataSource;
         dataSource = null;
         if (source != null) {

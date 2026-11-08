@@ -7,6 +7,7 @@ import dev.junxiex.mikuprotect.service.InspectionService;
 import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.storage.Storage;
 import dev.junxiex.mikuprotect.util.ItemCodec;
+import dev.junxiex.mikuprotect.util.Scheduler;
 import dev.junxiex.mikuprotect.util.TileEntityCodec;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import java.util.List;
@@ -15,6 +16,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.EnderChest;
 import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
@@ -52,14 +54,6 @@ public final class PlayerListener implements Listener {
     private final MikuConfig config;
     private final Storage storage;
     private final InspectionService inspection;
-
-    public PlayerListener(RecordingService recording, MikuConfig config) {
-        this(recording, config, null, null);
-    }
-
-    public PlayerListener(RecordingService recording, MikuConfig config, Storage storage) {
-        this(recording, config, storage, null);
-    }
 
     public PlayerListener(RecordingService recording, MikuConfig config, Storage storage,
             InspectionService inspection) {
@@ -100,7 +94,10 @@ public final class PlayerListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChat(AsyncChatEvent event) {
-        message(event.getPlayer(), ActionType.PLAYER_CHAT, PLAIN.serialize(event.message()));
+        Player player = event.getPlayer();
+        String text = PLAIN.serialize(event.message());
+        // AsyncChatEvent is off the region thread; read the player position on its entity scheduler.
+        Scheduler.entity(player, () -> message(player, ActionType.PLAYER_CHAT, text));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -191,7 +188,7 @@ public final class PlayerListener implements Listener {
             return;
         }
         BlockState state = block.getState();
-        if (!(state instanceof org.bukkit.inventory.InventoryHolder)) {
+        if (!(state instanceof org.bukkit.inventory.InventoryHolder) && !(state instanceof EnderChest)) {
             return;
         }
         recording.record(ActivityRecord.block(block.getLocation(), ActionType.CONTAINER_OPEN, event.getPlayer(),

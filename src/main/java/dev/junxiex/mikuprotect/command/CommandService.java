@@ -350,12 +350,22 @@ public final class CommandService {
             }
             switch (key) {
                 case "t", "time", "before" -> {
+                    long duration;
                     try {
-                        before = now - TimeUtil.parseDuration(value);
+                        duration = TimeUtil.parseDuration(value);
                     } catch (RuntimeException exception) {
                         send(sender, "&c时间格式无效: " + value + "（示例 30d、12h）");
                         return;
                     }
+                    if (duration <= 0L) {
+                        send(sender, "&c时间必须为正数: " + value);
+                        return;
+                    }
+                    if (duration >= now) {
+                        send(sender, "&c时间范围过大: " + value);
+                        return;
+                    }
+                    before = now - duration;
                 }
                 case "d", "days" -> {
                     int days;
@@ -365,11 +375,16 @@ public final class CommandService {
                         send(sender, "&c天数必须是整数: " + value);
                         return;
                     }
-                    if (days < 0) {
-                        send(sender, "&c天数必须大于或等于 0: " + value);
+                    if (days < 1) {
+                        send(sender, "&c天数必须大于或等于 1: " + value);
                         return;
                     }
-                    before = now - days * DAY_MILLIS;
+                    long span = days * DAY_MILLIS;
+                    if (span >= now) {
+                        send(sender, "&c天数范围过大: " + value);
+                        return;
+                    }
+                    before = now - span;
                 }
                 case "w", "world" -> world = value;
                 case "u", "user", "player" -> user = value;
@@ -457,24 +472,37 @@ public final class CommandService {
         if (config == null) {
             return;
         }
-        Storage storage = plugin.storage();
-        boolean healthy = false;
-        if (storage != null) {
-            try {
-                healthy = storage.healthy();
-            } catch (RuntimeException exception) {
-                healthy = false;
+        // COUNT(*) can scan the whole table; keep it off the region/global tick thread.
+        try {
+            Scheduler.async(() -> {
+                Storage storage = plugin.storage();
+            boolean healthy = false;
+            if (storage != null) {
+                try {
+                    healthy = storage.healthy();
+                } catch (RuntimeException exception) {
+                    healthy = false;
+                }
             }
+            long records = -1L;
+            if (storage != null && healthy) {
+                try {
+                    records = storage.count(LookupQuery.all());
+                } catch (Exception exception) {
+                    healthy = false;
+                }
+            }
+                boolean storageHealthy = healthy;
+                long recordCount = records;
+                Scheduler.global(() -> printStatus(sender, config, storage, storageHealthy, recordCount));
+            });
+        } catch (RuntimeException exception) {
+            send(sender, "&c状态查询调度失败: " + message(exception));
         }
+    }
+
+    private void printStatus(CommandSender sender, MikuConfig config, Storage storage, boolean healthy, long records) {
         sendRaw(sender, "&8&m----------&r &bMikuProtect &7状态 &8&m----------");
-        long records = -1L;
-        if (storage != null && healthy) {
-            try {
-                records = storage.count(LookupQuery.all());
-            } catch (Exception exception) {
-                healthy = false;
-            }
-        }
         sendRaw(sender, "&7存储: &f" + (storage == null ? "未就绪" : storage.type().name().toLowerCase(Locale.ROOT))
                 + " &7| &f" + (healthy ? "正常" : "异常")
                 + (records >= 0 ? " &7| 记录 &f" + records : ""));
@@ -548,6 +576,10 @@ public final class CommandService {
             z = Double.parseDouble(tokens.get(index + 2));
         } catch (NumberFormatException exception) {
             send(sender, "&c坐标必须是数字。");
+            return;
+        }
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            send(sender, "&c坐标必须是有限数字。");
             return;
         }
         Location target = new Location(world, x + 0.5D, y + 1.0D, z + 0.5D,

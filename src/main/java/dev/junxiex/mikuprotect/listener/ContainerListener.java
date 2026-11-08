@@ -7,7 +7,6 @@ import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.util.ItemCodec;
 import dev.junxiex.mikuprotect.util.Scheduler;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -16,6 +15,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
@@ -41,8 +41,8 @@ public final class ContainerListener implements Listener {
         this.recording = recording;
     }
 
-    /** 单槽快照：事件时刻的物品字节与数量，延迟任务只负责比对。 */
-    private record Snapshot(int slot, byte[] data, int amount) {
+    /** 单槽快照；只有真正变化的槽位才会序列化 ItemStack。 */
+    private record Snapshot(int slot, ItemStack item) {
     }
 
     // ---------------------------------------------------------------- 点击 / 拖拽
@@ -56,16 +56,30 @@ public final class ContainerListener implements Listener {
         if (clicked == null) {
             return;
         }
-        Location location = clicked.getLocation();
+        Inventory top = event.getView().getTopInventory();
+        if (top.getHolder() instanceof Player) {
+            return;
+        }
+        Location location = top.getLocation();
         if (location == null || location.getWorld() == null) {
             return;
         }
-        int slot = event.getSlot();
-        if (slot < 0) {
+        List<Snapshot> before;
+        if (event.getAction() == InventoryAction.COLLECT_TO_CURSOR) {
+            // Double-click collection can pull matching items from every top slot.
+            before = snapshot(top);
+        } else if (clicked == top) {
+            int slot = event.getSlot();
+            if (slot < 0 || slot >= top.getSize()) {
+                return;
+            }
+            before = List.of(new Snapshot(slot, clone(event.getCurrentItem())));
+        } else if (event.isShiftClick()) {
+            // Shift-click from the player inventory can fill any top slot; snapshot the top before it moves.
+            before = snapshot(top);
+        } else {
             return;
         }
-        ItemStack current = event.getCurrentItem();
-        List<Snapshot> before = List.of(new Snapshot(slot, ItemCodec.encode(current), ItemCodec.amount(current)));
         Scheduler.entityDelayed(player, () -> capture(location, player, before), 1L);
     }
 
@@ -75,6 +89,9 @@ public final class ContainerListener implements Listener {
             return;
         }
         Inventory top = event.getView().getTopInventory();
+        if (top.getHolder() instanceof Player) {
+            return;
+        }
         Location location = top.getLocation();
         if (location == null || location.getWorld() == null) {
             return;
@@ -87,7 +104,7 @@ public final class ContainerListener implements Listener {
                 continue;
             }
             ItemStack current = top.getItem(rawSlot);
-            before.add(new Snapshot(rawSlot, ItemCodec.encode(current), ItemCodec.amount(current)));
+            before.add(new Snapshot(rawSlot, clone(current)));
         }
         if (before.isEmpty()) {
             return;
@@ -101,20 +118,20 @@ public final class ContainerListener implements Listener {
     public void onMoveItem(InventoryMoveItemEvent event) {
         Inventory source = event.getSource();
         Inventory destination = event.getDestination();
-        Location sourceLocation = source != null ? source.getLocation() : null;
-        Location destinationLocation = destination != null ? destination.getLocation() : null;
+        if (source == null || destination == null || source.getHolder() instanceof Player
+                || destination.getHolder() instanceof Player) {
+            return;
+        }
+        Location sourceLocation = source.getLocation();
+        Location destinationLocation = destination.getLocation();
         if (sourceLocation == null || destinationLocation == null
                 || sourceLocation.getWorld() == null || destinationLocation.getWorld() == null) {
             return;
         }
         List<Snapshot> sourceBefore = snapshot(source);
         List<Snapshot> destinationBefore = snapshot(destination);
-        regionLater(sourceLocation, () -> {
-            compare(sourceLocation, null, sourceBefore);
-            if (Bukkit.isOwnedByCurrentRegion(destinationLocation)) {
-                compare(destinationLocation, null, destinationBefore);
-            }
-        });
+        regionLater(sourceLocation, () -> compare(sourceLocation, null, sourceBefore));
+        regionLater(destinationLocation, () -> compare(destinationLocation, null, destinationBefore));
     }
 
     // ---------------------------------------------------------------- 比对
@@ -142,13 +159,15 @@ public final class ContainerListener implements Listener {
                 continue;
             }
             ItemStack after = inventory.getItem(slot);
-            byte[] afterData = ItemCodec.encode(after);
+            ItemStack beforeItem = snapshot.item();
+            int beforeAmount = ItemCodec.amount(beforeItem);
             int afterAmount = ItemCodec.amount(after);
-            if (Arrays.equals(snapshot.data(), afterData) && snapshot.amount() == afterAmount) {
+            if (sameItem(beforeItem, after) && beforeAmount == afterAmount) {
                 continue;
             }
-            changes.add(new ContainerChange(slot, snapshot.data(), afterData, snapshot.amount(), afterAmount));
-            delta += afterAmount - snapshot.amount();
+            changes.add(new ContainerChange(slot, ItemCodec.encode(beforeItem), ItemCodec.encode(after),
+                    beforeAmount, afterAmount));
+            delta += afterAmount - beforeAmount;
         }
         if (changes.isEmpty()) {
             return;
@@ -161,10 +180,20 @@ public final class ContainerListener implements Listener {
         int size = Math.min(inventory.getSize(), MAX_SNAPSHOT_SLOTS);
         List<Snapshot> snapshots = new ArrayList<>(size);
         for (int slot = 0; slot < size; slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            snapshots.add(new Snapshot(slot, ItemCodec.encode(stack), ItemCodec.amount(stack)));
+            snapshots.add(new Snapshot(slot, clone(inventory.getItem(slot))));
         }
         return snapshots;
+    }
+
+    private static ItemStack clone(ItemStack item) {
+        return item == null ? null : item.clone();
+    }
+
+    private static boolean sameItem(ItemStack left, ItemStack right) {
+        if (left == null) {
+            return right == null;
+        }
+        return right != null && left.isSimilar(right);
     }
 
     private static Inventory containerAt(Location location) {

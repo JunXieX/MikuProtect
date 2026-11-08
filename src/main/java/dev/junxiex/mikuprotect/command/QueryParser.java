@@ -289,6 +289,9 @@ public final class QueryParser {
     }
 
     private static EnumSet<ActionType> resolveActions(String key) {
+        if ("session".equals(key)) {
+            return EnumSet.of(ActionType.PLAYER_JOIN, ActionType.PLAYER_QUIT);
+        }
         ActionType single = ActionType.byKey(key);
         if (single != null) {
             return EnumSet.of(single);

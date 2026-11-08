@@ -36,21 +36,21 @@ public final class MikuProtectAPIImpl implements MikuProtectAPI {
 
     @Override
     public CompletableFuture<RollbackResult> rollback(LookupQuery query, Object owner) {
-        return plugin.rollback().apply(new RollbackRequest(RollbackRequest.Mode.ROLLBACK, query,
+        return plugin.rollback().apply(new RollbackRequest(RollbackRequest.Mode.ROLLBACK, query.copy(),
                 owner instanceof CommandSender sender ? sender : null,
                 plugin.config().rollbackMaxRows, plugin.config().applyPhysics));
     }
 
     @Override
     public CompletableFuture<RollbackResult> restore(LookupQuery query, Object owner) {
-        return plugin.rollback().apply(new RollbackRequest(RollbackRequest.Mode.RESTORE, query,
+        return plugin.rollback().apply(new RollbackRequest(RollbackRequest.Mode.RESTORE, query.copy(),
                 owner instanceof CommandSender sender ? sender : null,
                 plugin.config().rollbackMaxRows, plugin.config().applyPhysics));
     }
 
     @Override
     public CompletableFuture<RollbackResult> preview(LookupQuery query, Object owner) {
-        return plugin.rollback().apply(new RollbackRequest(RollbackRequest.Mode.PREVIEW, query,
+        return plugin.rollback().apply(new RollbackRequest(RollbackRequest.Mode.PREVIEW, query.copy(),
                 owner instanceof CommandSender sender ? sender : null,
                 plugin.config().rollbackMaxRows, plugin.config().applyPhysics));
     }

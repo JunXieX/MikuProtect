@@ -105,7 +105,7 @@ public abstract class JdbcStorage implements Storage {
     private final Map<UUID, String> userNames = new ConcurrentHashMap<>();
     private final ReentrantLock writeGuard = new ReentrantLock();
 
-    protected final MikuConfig config;
+    protected volatile MikuConfig config;
     protected final Logger logger;
 
     private volatile boolean ready;
@@ -120,6 +120,13 @@ public abstract class JdbcStorage implements Storage {
     @Override
     public final StorageType type() {
         return type;
+    }
+
+    @Override
+    public void updateConfig(MikuConfig next) {
+        if (next != null) {
+            this.config = next;
+        }
     }
 
     @Override
@@ -143,7 +150,6 @@ public abstract class JdbcStorage implements Storage {
         try {
             createSchema();
             loadCaches();
-            afterSchema();
         } catch (StorageException failure) {
             shutdownQuietly();
             throw failure;
@@ -167,29 +173,20 @@ public abstract class JdbcStorage implements Storage {
         if (activities == null || activities.isEmpty()) {
             return;
         }
-        List<ActivityRecord> batch = new ArrayList<>(activities.size());
-        for (ActivityRecord record : activities) {
-            if (record != null && record.action != null) {
-                batch.add(record);
-            }
-        }
-        if (batch.isEmpty()) {
-            return;
-        }
         ensureReady();
         writeGuard.lock();
         try {
             PersistedNames persisted = transaction(connection -> {
-                prepareBatch(batch);
-                PersistedNames names = insertDimensions(connection, batch);
-                insertActivities(connection, batch);
-                insertContainers(connection, batch);
+                prepareBatch(activities);
+                PersistedNames names = insertDimensions(connection, activities);
+                insertActivities(connection, activities);
+                insertContainers(connection, activities);
                 return names;
             });
             registry.worlds().markPersisted(persisted.worlds());
             registry.users().markPersisted(persisted.users());
             registry.materials().markPersisted(persisted.materials());
-            rememberUserNames(batch);
+            rememberUserNames(activities);
         } finally {
             writeGuard.unlock();
         }
@@ -284,23 +281,28 @@ public abstract class JdbcStorage implements Storage {
             return;
         }
         List<Long> unique = new ArrayList<>(deduped);
-        transaction(connection -> {
-            byte flag = (byte) (rolledBack ? 1 : 0);
-            for (int start = 0; start < unique.size(); start += IDS_PER_STATEMENT) {
-                int end = Math.min(unique.size(), start + IDS_PER_STATEMENT);
-                List<Long> chunk = unique.subList(start, end);
-                String text = ACTIVITY_MARK + placeholders(chunk.size());
-                try (PreparedStatement statement = connection.prepareStatement(text)) {
-                    statement.setByte(1, flag);
-                    int index = 2;
-                    for (Long id : chunk) {
-                        statement.setLong(index++, id);
+        writeGuard.lock();
+        try {
+            transaction(connection -> {
+                byte flag = (byte) (rolledBack ? 1 : 0);
+                for (int start = 0; start < unique.size(); start += IDS_PER_STATEMENT) {
+                    int end = Math.min(unique.size(), start + IDS_PER_STATEMENT);
+                    List<Long> chunk = unique.subList(start, end);
+                    String text = ACTIVITY_MARK + placeholders(chunk.size());
+                    try (PreparedStatement statement = connection.prepareStatement(text)) {
+                        statement.setByte(1, flag);
+                        int index = 2;
+                        for (Long id : chunk) {
+                            statement.setLong(index++, id);
+                        }
+                        statement.executeUpdate();
                     }
-                    statement.executeUpdate();
                 }
-            }
-            return null;
-        });
+                return null;
+            });
+        } finally {
+            writeGuard.unlock();
+        }
     }
 
     @Override
@@ -309,14 +311,20 @@ public abstract class JdbcStorage implements Storage {
         int batch = Math.max(1, config.purgeBatch);
         int removed = 0;
         while (true) {
-            Integer deleted = transaction(connection -> {
-                List<Long> ids = selectPurgeIds(connection, beforeTime, worldName, userName, batch);
-                if (ids.isEmpty()) {
-                    return Integer.valueOf(0);
-                }
-                deleteByIds(connection, CONTAINER_DELETE, ids);
-                return Integer.valueOf(deleteByIds(connection, ACTIVITY_DELETE, ids));
-            });
+            writeGuard.lock();
+            Integer deleted;
+            try {
+                deleted = transaction(connection -> {
+                    List<Long> ids = selectPurgeIds(connection, beforeTime, worldName, userName, batch);
+                    if (ids.isEmpty()) {
+                        return Integer.valueOf(0);
+                    }
+                    deleteByIds(connection, CONTAINER_DELETE, ids);
+                    return Integer.valueOf(deleteByIds(connection, ACTIVITY_DELETE, ids));
+                });
+            } finally {
+                writeGuard.unlock();
+            }
             int current = deleted == null ? 0 : deleted.intValue();
             removed += current;
             if (current <= 0) {
@@ -405,11 +413,6 @@ public abstract class JdbcStorage implements Storage {
     // ------------------------------------------------------------------
     // 方言钩子
     // ------------------------------------------------------------------
-
-    /** 用插件 classloader 加载驱动，否则 DriverManager 的 ServiceLoader 找不到它。 */
-    /** 建表与缓存装载后的钩子，MariaDB 用来获取跨服写锁。 */
-    protected void afterSchema() throws StorageException {
-    }
 
     protected abstract void loadDriver() throws ClassNotFoundException;
 

@@ -27,19 +27,6 @@ public final class ListenerRegistrar {
     private final InspectionService inspection;
     private final List<Listener> listeners = new ArrayList<>(5);
 
-    public ListenerRegistrar(Plugin plugin, MikuConfig config, RecordingService recording) {
-        this(plugin, config, recording, null);
-    }
-
-    public ListenerRegistrar(Plugin plugin, MikuConfig config, RecordingService recording, AlertService alerts) {
-        this(plugin, config, recording, alerts, null, null);
-    }
-
-    public ListenerRegistrar(Plugin plugin, MikuConfig config, RecordingService recording, AlertService alerts,
-            Storage storage) {
-        this(plugin, config, recording, alerts, storage, null);
-    }
-
     public ListenerRegistrar(Plugin plugin, MikuConfig config, RecordingService recording, AlertService alerts,
             Storage storage, InspectionService inspection) {
         this.plugin = plugin;
@@ -74,7 +61,4 @@ public final class ListenerRegistrar {
         listeners.clear();
     }
 
-    public boolean registered() {
-        return !listeners.isEmpty();
-    }
 }

@@ -197,10 +197,6 @@ public final class ActivityRecord {
                 oldMeta, containers);
     }
 
-    public boolean isContainer() {
-        return action.category() == ActionType.Category.CONTAINER;
-    }
-
     public List<ContainerChange> containersOrEmpty() {
         return containers;
     }

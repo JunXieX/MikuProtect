@@ -218,10 +218,8 @@ public final class QuerySql {
     private static void searchConditions(List<String> conditions, List<Object> params, String search) {
         String pattern = "%" + escapeLike(search.trim()) + "%";
         conditions.add("(" + likeCondition("a.message")
-                + " OR " + likeCondition("a.old_message")
                 + " OR " + likeCondition("a.target_user")
                 + " OR " + likeCondition("a.block_data") + ")");
-        params.add(pattern);
         params.add(pattern);
         params.add(pattern);
         params.add(pattern);

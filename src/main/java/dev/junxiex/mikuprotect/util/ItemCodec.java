@@ -22,7 +22,7 @@ public final class ItemCodec {
         try {
             return ItemStack.deserializeBytes(data);
         } catch (RuntimeException exception) {
-            return null;
+            throw new IllegalArgumentException("Invalid item data", exception);
         }
     }
 

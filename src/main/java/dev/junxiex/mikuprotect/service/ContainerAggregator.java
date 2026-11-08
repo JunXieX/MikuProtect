@@ -74,10 +74,6 @@ final class ContainerAggregator {
         }
     }
 
-    int size() {
-        return pending.size();
-    }
-
     private static void merge(Map<Integer, ContainerChange> changes, ContainerChange change) {
         if (change == null) {
             return;

@@ -54,7 +54,6 @@ public final class TileEntityCodec {
     private static final int TYPE_COMMAND = 9;
     private static final int TYPE_STRUCTURE = 10;
     private static final int TYPE_CAMPFIRE = 11;
-    private static final int TYPE_GENERIC = 12;
 
     private static final int MAX_SLOTS = 4096;
     private static final int MAX_PAYLOAD = 16 * 1024 * 1024;
@@ -152,9 +151,6 @@ public final class TileEntityCodec {
                         out.writeInt(campfire.getCookTime(index));
                         out.writeInt(campfire.getCookTimeTotal(index));
                     }
-                } else if (state instanceof org.bukkit.block.TileState) {
-                    out.writeByte(TYPE_GENERIC);
-                    writeString(out, state.getType().getKey().toString());
                 } else {
                     return null;
                 }

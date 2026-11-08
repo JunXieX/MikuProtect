@@ -4,9 +4,6 @@
 storage:
   # duckdb 或 mariadb
   type: duckdb
-  # MariaDB 多服共库保护：抢到写锁的服务端才能启动（DuckDB 由文件锁天然保护）
-  lock-enabled: true
-  lock-timeout-ms: 60000
   duckdb:
     file: data/mikuprotect.duckdb
     memory-limit: 512MB
@@ -91,19 +88,16 @@ lookup:
   default-since: 3d
   page-size: 10
   max-page-size: 100
-  throttle-ms: 100
 
 rollback:
   max-rows: 200000
   budget-ms: 25
   min-budget-ms: 10
   max-budget-ms: 50
-  chunk-prefetch: 4
   # false 时按精确状态恢复，不触发连锁物理；红石机器建议保持 false。
   apply-physics: false
   # true 时在区块恢复后对红石元件做一次受控唤醒；可能触发连锁，默认关闭。
   redstone-refresh: false
-  max-radius: 100
 
 purge:
   auto-enabled: false

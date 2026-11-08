@@ -8,7 +8,7 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 
 - 方块：放置、破坏、爆炸、燃烧、消退、形成、蔓延、活塞、桶、液体流动、生长、凋零、施肥、结构生长、发射器
 - 容器：点击、拖拽、漏斗搬运、开箱，逐槽记录前后物品
-- 实体：生成、死亡、爆炸、转化、放置、剪毛、玩家击杀与死亡；Paper 上保存完整实体字节并可恢复
+- 实体：生成、死亡、爆炸、转化、放置、剪毛、玩家击杀与死亡；击杀实体保存完整字节并可恢复，生成记录类型/UUID
 - 玩家：加入、退出、聊天、命令、告示牌修改、改名历史、丢弃/拾取/合成/损坏/食用
 - 查询：玩家、动作、材质、实体、世界、半径、时间窗、关键词、分页
 - 回滚 / 还原 / 预览 / 确认 / 取消 / 撤销
@@ -30,8 +30,8 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 
 ## 安装
 
-1. 将 `MikuProtect-1.0.0.jar` 放入服务端 `plugins/`。
-2. 启动服务器，首次会生成 `plugins/MikuProtect/config.yml` 与 `plugins/MikuProtect/data/`。
+1. 将 `MikuProtect-1.1.0.jar` 放入服务端 `plugins/`。
+2. 启动服务器，首次会生成 `plugins/MikuProtect/config.yml` 与 `plugins/MikuProtect/data/`；loader 会联网下载 DuckDB/MariaDB/HikariCP，首次启动需要可访问 Maven Central 镜像。
 3. 默认使用 DuckDB，无需额外安装数据库。
 4. 如需 MariaDB，先创建数据库（例如 `CREATE DATABASE mikuprotect`），再修改 `storage.type: mariadb` 并填写连接信息，重启服务器。
 5. 修改配置后执行 `/mp reload`；存储类型变更必须重启。
@@ -40,7 +40,7 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 
 | 配置段 | 说明 |
 | --- | --- |
-| `storage` | 存储类型、DuckDB 文件与内存限制、MariaDB 连接与连接池、MariaDB 写锁 |
+| `storage` | 存储类型、DuckDB 文件与内存限制、MariaDB 连接与连接池 |
 | `recording` | 队列容量、批大小、刷盘间隔、WAL、容器聚合窗口、世界白名单、各类事件开关 |
 | `lookup` | 默认/最大半径、默认时间窗、每页条数、查询节流 |
 | `rollback` | 最大行数、每 tick 预算、区块预取、物理开关、红石唤醒 |

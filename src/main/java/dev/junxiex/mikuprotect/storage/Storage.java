@@ -1,5 +1,6 @@
 package dev.junxiex.mikuprotect.storage;
 
+import dev.junxiex.mikuprotect.config.MikuConfig;
 import dev.junxiex.mikuprotect.model.ActivityRecord;
 import dev.junxiex.mikuprotect.model.LookupQuery;
 import dev.junxiex.mikuprotect.model.StoredActivity;
@@ -13,6 +14,10 @@ import java.util.List;
 public interface Storage extends AutoCloseable {
 
     StorageType type();
+
+    /** Replaces the config snapshot for dynamic limits after /mp reload. */
+    default void updateConfig(MikuConfig config) {
+    }
 
     void init() throws StorageException;
 

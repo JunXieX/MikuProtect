@@ -18,8 +18,6 @@ import org.bukkit.configuration.file.FileConfiguration;
 public final class MikuConfig {
 
     public final StorageType storageType;
-    public final boolean lockEnabled;
-    public final long lockTimeoutMs;
     public final String duckdbFile;
     public final String duckdbMemoryLimit;
     public final int duckdbThreads;
@@ -50,16 +48,13 @@ public final class MikuConfig {
     public final long defaultSince;
     public final int pageSize;
     public final int maxPageSize;
-    public final long throttleMs;
 
     public final int rollbackMaxRows;
     public final long rollbackBudgetMs;
     public final long rollbackMinBudgetMs;
     public final long rollbackMaxBudgetMs;
-    public final int chunkPrefetch;
     public final boolean applyPhysics;
     public final boolean redstoneRefresh;
-    public final int rollbackMaxRadius;
 
     public final boolean purgeAuto;
     public final int purgeDays;
@@ -81,15 +76,13 @@ public final class MikuConfig {
 
     public MikuConfig(FileConfiguration config, Logger logger) {
         this.storageType = StorageType.parse(config.getString("storage.type", "duckdb"));
-        this.lockEnabled = config.getBoolean("storage.lock-enabled", true);
-        this.lockTimeoutMs = Math.max(5000L, config.getLong("storage.lock-timeout-ms", 60000L));
         this.duckdbFile = config.getString("storage.duckdb.file", "data/mikuprotect.duckdb");
         this.duckdbMemoryLimit = config.getString("storage.duckdb.memory-limit", "512MB");
         this.duckdbThreads = Math.max(1, config.getInt("storage.duckdb.threads", 3));
         this.duckdbMaxTempSize = config.getString("storage.duckdb.max-temp-size", "10GB");
 
         this.mariadbHost = config.getString("storage.mariadb.host", "127.0.0.1");
-        this.mariadbPort = config.getInt("storage.mariadb.port", 3306);
+        this.mariadbPort = Math.min(65535, Math.max(1, config.getInt("storage.mariadb.port", 3306)));
         this.mariadbDatabase = config.getString("storage.mariadb.database", "mikuprotect");
         this.mariadbUsername = config.getString("storage.mariadb.username", "root");
         this.mariadbPassword = config.getString("storage.mariadb.password", "");
@@ -173,16 +166,13 @@ public final class MikuConfig {
         this.defaultSince = since;
         this.pageSize = Math.max(1, config.getInt("lookup.page-size", 10));
         this.maxPageSize = Math.max(this.pageSize, config.getInt("lookup.max-page-size", 100));
-        this.throttleMs = Math.max(0L, config.getLong("lookup.throttle-ms", 100L));
 
         this.rollbackMaxRows = Math.max(1000, config.getInt("rollback.max-rows", 200000));
         this.rollbackBudgetMs = Math.max(1L, config.getLong("rollback.budget-ms", 25L));
         this.rollbackMinBudgetMs = Math.max(1L, config.getLong("rollback.min-budget-ms", 10L));
         this.rollbackMaxBudgetMs = Math.max(this.rollbackMinBudgetMs, config.getLong("rollback.max-budget-ms", 50L));
-        this.chunkPrefetch = Math.max(0, config.getInt("rollback.chunk-prefetch", 4));
         this.applyPhysics = config.getBoolean("rollback.apply-physics", false);
         this.redstoneRefresh = config.getBoolean("rollback.redstone-refresh", false);
-        this.rollbackMaxRadius = Math.max(0, config.getInt("rollback.max-radius", 100));
 
         this.purgeAuto = config.getBoolean("purge.auto-enabled", false);
         this.purgeDays = Math.max(1, config.getInt("purge.auto-days", 30));
@@ -190,7 +180,7 @@ public final class MikuConfig {
 
         this.webEnabled = config.getBoolean("web.enabled", false);
         this.webBind = config.getString("web.bind", "127.0.0.1");
-        this.webPort = Math.max(1, config.getInt("web.port", 4040));
+        this.webPort = Math.min(65535, Math.max(1, config.getInt("web.port", 4040)));
         this.webApiKey = config.getString("web.api-key", "");
         this.webMaxResults = Math.max(1, config.getInt("web.max-results", 100));
         this.webRateLimitPerMinute = Math.max(0, config.getInt("web.rate-limit-per-minute", 120));

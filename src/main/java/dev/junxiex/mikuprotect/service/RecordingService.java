@@ -153,6 +153,9 @@ public final class RecordingService {
                 try {
                     Thread.sleep(Math.min(5000L, 250L * attempts));
                 } catch (InterruptedException interrupted) {
+                    // Clear the interrupt flag before file I/O; FileChannel aborts on interrupt.
+                    Thread.interrupted();
+                    wal.append(batch);
                     Thread.currentThread().interrupt();
                     return;
                 }

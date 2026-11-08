@@ -119,9 +119,6 @@ public enum ActionType {
         if ("command".equals(normalized)) {
             return PLAYER_COMMAND;
         }
-        if ("session".equals(normalized)) {
-            return PLAYER_JOIN;
-        }
         return byKey(normalized);
     }
 }

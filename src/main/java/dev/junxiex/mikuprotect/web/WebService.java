@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
@@ -27,6 +28,7 @@ public final class WebService {
     private final MikuConfig config;
     private final RateLimiter rateLimiter;
     private HttpServer server;
+    private ExecutorService executor;
 
     public WebService(MikuProtectPlugin plugin, MikuConfig config) {
         this.plugin = plugin;
@@ -44,23 +46,34 @@ public final class WebService {
         }
         try {
             server = HttpServer.create(new InetSocketAddress(config.webBind, config.webPort), 0);
-            server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+            executor = Executors.newVirtualThreadPerTaskExecutor();
+            server.setExecutor(executor);
             server.createContext("/api/v1/status", exchange -> handle(exchange, this::status));
             server.createContext("/api/v1/activities", exchange -> handle(exchange, this::activities));
             server.start();
             plugin.getLogger().info("Web API listening on " + config.webBind + ":" + config.webPort);
             return true;
-        } catch (IOException exception) {
+        } catch (IOException | RuntimeException exception) {
             plugin.getLogger().warning("Web API failed to start: " + exception.getMessage());
-            server = null;
+            stop();
             return false;
         }
     }
 
     public void stop() {
-        if (server != null) {
-            server.stop(0);
-            server = null;
+        HttpServer current = server;
+        server = null;
+        if (current != null) {
+            try {
+                current.stop(0);
+            } catch (RuntimeException ignored) {
+                // already stopped or never started
+            }
+        }
+        ExecutorService currentExecutor = executor;
+        executor = null;
+        if (currentExecutor != null) {
+            currentExecutor.shutdownNow();
         }
     }
 
@@ -101,11 +114,13 @@ public final class WebService {
 
     private String activities(HttpExchange exchange) throws Exception {
         Map<String, String> params = query(exchange.getRequestURI().getRawQuery());
+        int requested = parse(params.get("limit"), 20);
+        int limit = requested < 1 ? 20 : Math.min(config.webMaxResults, requested);
         LookupQuery query = LookupQuery.all()
                 .world(params.get("world"))
                 .user(params.get("user"))
                 .material(params.get("material"))
-                .limit(Math.min(config.webMaxResults, parse(params.get("limit"), 20)))
+                .limit(limit)
                 .page(Math.max(1, parse(params.get("page"), 1)))
                 .since(parseLong(params.get("since"), 0L));
         List<StoredActivity> rows = plugin.lookup().lookup(query).get(10, java.util.concurrent.TimeUnit.SECONDS);
