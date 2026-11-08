@@ -92,6 +92,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
         this.web = new WebService(this, config);
         this.web.start();
 
+
         if (config.purgeAuto) {
             long period = 20L * 60L * 60L * 24L;
             Scheduler.timerGlobal(() -> purge.purge(

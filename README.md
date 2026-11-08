@@ -14,7 +14,7 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 - 回滚 / 还原 / 预览 / 确认 / 取消 / 撤销
 - 红石状态：完整方块状态（朝向、供电、延时、锁定等）+ 容器内容 + 常见方块实体数据
 - Paper 与 Folia 双端，区块级区域调度
-- WorldEdit / FastAsyncWorldEdit 批量编辑记录（单次编辑可限流）
+- WorldEdit / FastAsyncWorldEdit 批量编辑记录（FAWE 2.16.2+，与 WorldEdit 二选一安装；单次编辑可限流）
 - 自动清理、矿物告警、公开 API 与可取消的 PreLog 事件
 - 可选只读 Web API（Bearer API Key，默认关闭）
 

@@ -6,8 +6,12 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.event.extent.EditSessionEvent;
 import com.sk89q.worldedit.extent.AbstractDelegateExtent;
 import com.sk89q.worldedit.extent.Extent;
+import com.sk89q.worldedit.function.mask.Mask;
+import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.eventbus.Subscribe;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 import dev.junxiex.mikuprotect.MikuProtectPlugin;
@@ -76,6 +80,99 @@ public final class WorldEditIntegration {
             this.world = world;
             this.actor = actor;
             this.maxBlocks = maxBlocks;
+        }
+
+        /**
+         * FAWE adds bulk methods to Extent; WorldEdit 7.3 does not. Keeping the exact descriptors
+         * here means FAWE dispatches its //set and //replace fast paths through this recorder
+         * instead of bypassing setBlock. The methods are inert on plain WorldEdit.
+         */
+        public <B extends BlockStateHolder<B>> int setBlocks(Region region, B block)
+                throws com.sk89q.worldedit.MaxChangedBlocksException {
+            int affected = 0;
+            for (BlockVector3 position : region) {
+                if (bulkSet(position, block)) {
+                    affected++;
+                }
+            }
+            return affected;
+        }
+
+        public int setBlocks(Region region, Pattern pattern)
+                throws com.sk89q.worldedit.MaxChangedBlocksException {
+            int affected = 0;
+            for (BlockVector3 position : region) {
+                if (bulkSet(position, pattern.applyBlock(position))) {
+                    affected++;
+                }
+            }
+            return affected;
+        }
+
+        public int setBlocks(java.util.Set<BlockVector3> positions, Pattern pattern) {
+            int affected = 0;
+            for (BlockVector3 position : positions) {
+                try {
+                    if (setBlock(position, pattern.applyBlock(position))) {
+                        affected++;
+                    }
+                } catch (com.sk89q.worldedit.WorldEditException ignored) {
+                    // keep the remaining bulk positions going
+                }
+            }
+            return affected;
+        }
+
+        public <B extends BlockStateHolder<B>> int replaceBlocks(Region region,
+                java.util.Set<BaseBlock> from, B to) throws com.sk89q.worldedit.MaxChangedBlocksException {
+            int affected = 0;
+            for (BlockVector3 position : region) {
+                BaseBlock current = getFullBlock(position);
+                if (from == null || from.contains(current)) {
+                    if (bulkSet(position, to)) {
+                        affected++;
+                    }
+                }
+            }
+            return affected;
+        }
+
+        public int replaceBlocks(Region region, java.util.Set<BaseBlock> from, Pattern pattern)
+                throws com.sk89q.worldedit.MaxChangedBlocksException {
+            int affected = 0;
+            for (BlockVector3 position : region) {
+                BaseBlock current = getFullBlock(position);
+                if (from == null || from.contains(current)) {
+                    if (bulkSet(position, pattern.applyBlock(position))) {
+                        affected++;
+                    }
+                }
+            }
+            return affected;
+        }
+
+        public int replaceBlocks(Region region, Mask mask, Pattern pattern)
+                throws com.sk89q.worldedit.MaxChangedBlocksException {
+            int affected = 0;
+            for (BlockVector3 position : region) {
+                if (mask == null || mask.test(position)) {
+                    if (bulkSet(position, pattern.applyBlock(position))) {
+                        affected++;
+                    }
+                }
+            }
+            return affected;
+        }
+
+        private <B extends BlockStateHolder<B>> boolean bulkSet(BlockVector3 position, B block)
+                throws com.sk89q.worldedit.MaxChangedBlocksException {
+            try {
+                return setBlock(position, block);
+            } catch (com.sk89q.worldedit.MaxChangedBlocksException exception) {
+                throw exception;
+            } catch (com.sk89q.worldedit.WorldEditException exception) {
+                throw new IllegalStateException(exception);
+            }
         }
 
         @Override
