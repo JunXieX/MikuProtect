@@ -16,8 +16,13 @@ dependencies {
     compileOnly("com.zaxxer:HikariCP:7.0.2")
     // 供 MikuProtectLoader 引用 MavenLibraryResolver 的 aether 类型
     compileOnly("org.apache.maven.resolver:maven-resolver-api:1.9.22")
-    compileOnly("com.sk89q.worldedit:worldedit-core:7.3.12")
-    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.3.12")
+    // 只取 WorldEdit API 类；关掉传递依赖，避免它的 strict 版本约束与 paper-api 冲突
+    compileOnly("com.sk89q.worldedit:worldedit-core:7.3.12") {
+        isTransitive = false
+    }
+    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.3.12") {
+        isTransitive = false
+    }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     // ActivityRecord 的方法签名引用 Bukkit 类型，测试运行期也需要 paper-api
