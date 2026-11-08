@@ -25,6 +25,7 @@ dependencies {
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
     // ActivityRecord 的方法签名引用 Bukkit 类型，测试运行期也需要 paper-api
     testImplementation("io.papermc.paper:paper-api:26.3.build.38-alpha")
     testImplementation("org.duckdb:duckdb_jdbc:1.4.5.0")
