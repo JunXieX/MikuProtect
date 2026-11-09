@@ -12,7 +12,8 @@ CI performance harness for **MikuProtect vs CoreProtect Community Edition vs Pri
    - measured task interval (avg/p50/p95/max),
    - Paper `getAverageTickTime()`,
    - Paper TPS,
-   - storage footprint under `plugins/`.
+   - startup time, peak RSS and storage footprint under `plugins/`;
+4. Runs the plugin's own lookup and rollback commands and records console-output quiet time. These are wall-clock adapter measurements, not normalized API benchmarks.
 
 Every run has a fresh server directory, world and database. The probe is loaded in every
 variant, including the baseline.
@@ -68,11 +69,11 @@ python3 benchmark/run.py \
 
 This is a **relative** comparison of event-logging overhead:
 
-- no players, no network traffic, no entity AI beyond the TNT burst;
-- TNT block destruction, not normal mining/placing;
+- no network players; the bundled Mineflayer/Via experiment cannot speak the 26.3 protocol reliably in this headless CI image;
+- TNT block destruction plus hopper/container and zombie-death paths, not normal player mining/placing;
 - storage engines are plugin defaults (DuckDB / SQLite / H2-capable defaults), so storage size and
   write throughput are not purely listener overhead;
-- query and rollback latency are not measured here;
+- query/rollback commands differ by plugin; their output and confirmation behavior is adapter-specific;
 - CoreProtect 24.2-dev is an auto-build; the workflow consumes the latest-build asset, not a frozen upstream release.
 
 Do not treat a single run as a production TPS guarantee. Use the table for regression direction,

@@ -71,6 +71,29 @@ def wait_for(log: Path, marker: str, timeout: float, process: subprocess.Popen |
     return False
 
 
+def timed_console_command(log: Path, process: subprocess.Popen, command: str, timeout: float,
+                         quiet_seconds: float = 1.0) -> float | None:
+    """Measure until console output has been quiet long enough to call the command complete."""
+    if process.stdin is None:
+        return None
+    before = log.stat().st_size if log.exists() else 0
+    started = time.monotonic()
+    process.stdin.write(command + "\n")
+    process.stdin.flush()
+    last_size = before
+    last_change = started
+    deadline = started + timeout
+    while time.monotonic() < deadline:
+        time.sleep(0.25)
+        size = log.stat().st_size if log.exists() else before
+        if size != last_size:
+            last_size = size
+            last_change = time.monotonic()
+        elif size > before and time.monotonic() - last_change >= quiet_seconds:
+            return round(time.monotonic() - started, 3)
+    return None
+
+
 def storage_bytes(server_dir: Path) -> int:
     suffixes = {".db", ".sqlite", ".sqlite3", ".duckdb", ".mv.db", ".h2.db", ".wal"}
     total = 0
@@ -203,6 +226,22 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
             result.update(parse_result(result_lines[-1]))
             result["status"] = "ok" if done else "result_without_done"
             result["storage_bytes"] = storage_bytes(server_dir)
+            if variant != "baseline" and args.query:
+                query_command = {
+                    "mikuprotect": "mp lookup t:5m",
+                    "coreprotect": "co lookup t:5m",
+                    "prism": "prism lookup",
+                }.get(variant)
+                if query_command:
+                    result["query_seconds"] = timed_console_command(log, process, query_command, 20.0)
+                if variant != "baseline":
+                    rollback_command = {
+                        "mikuprotect": "mp rollback t:5m",
+                        "coreprotect": "co rollback t:5m",
+                        "prism": "prism rollback",
+                    }.get(variant)
+                    if rollback_command:
+                        result["rollback_seconds"] = timed_console_command(log, process, rollback_command, 60.0)
             result["max_rss_mb"] = round(rss_state["max_kb"] / 1024, 2)
             result["duration_seconds"] = round(time.monotonic() - started, 3)
             errors = [
@@ -229,6 +268,16 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
                         process.wait(timeout=10)
 
 
+def query_text(runs: list[dict]) -> str:
+    value = median_value(runs, "query_seconds")
+    return f"{value:.3f}" if value else "-"
+
+
+def rollback_text(runs: list[dict]) -> str:
+    value = median_value(runs, "rollback_seconds")
+    return f"{value:.3f}" if value else "-"
+
+
 def median_value(runs: list[dict], key: str) -> float:
     values = [float(run[key]) for run in runs if run.get("status") in ("ok", "result_without_done") and key in run]
     return float(statistics.median(values)) if values else 0.0
@@ -244,8 +293,8 @@ def markdown_report(variants: list[dict], raw: dict) -> str:
         "",
         "Same Paper/JVM, flat world, no network players; fixed TNT burst + 200 hoppers + 200 zombies. Values are medians of the runs.",
         "",
-        "| Variant | Status | Avg tick interval ms | P95 ms | Max ms | Server avg tick ms | TPS avg | Startup s | Max RSS MiB | Storage MiB | Δ vs baseline |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Variant | Status | Avg tick interval ms | P95 ms | Max ms | Server avg tick ms | TPS avg | Startup s | Max RSS MiB | Query s | Rollback s | Storage MiB | Δ vs baseline |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for variant in variants:
         runs = variant["runs"]
@@ -260,14 +309,15 @@ def markdown_report(variants: list[dict], raw: dict) -> str:
             f"{median_value(runs, 'server_tick_avg_ms'):.3f} | "
             f"{median_value(runs, 'tps_avg'):.3f} | "
             f"{median_value(runs, 'startup_seconds'):.3f} | "
-            f"{median_value(runs, 'max_rss_mb'):.1f} | {storage:.2f} | {delta} |"
+            f"{median_value(runs, 'max_rss_mb'):.1f} | "
+            f"{query_text(runs)} | {rollback_text(runs)} | {storage:.2f} | {delta} |"
         )
     lines.extend([
         "",
         f"- TNT: {raw['config']['tnt']}, measured ticks: {raw['config']['ticks']}, runs: {raw['config']['runs']}",
         "- CoreProtect 24.2-dev comes from the Midnight-2004 26.3 auto-build release; it is a dev build and can change.",
         "- Storage engines differ by plugin (DuckDB, SQLite/H2/MySQL-capable defaults); storage size is informational.",
-        "- This measures event-record overhead and tick impact, not query or rollback latency.",
+        "- Query/rollback seconds are wall-clock console-output quiet times; plugin-specific output/confirmation semantics differ.",
     ])
     return "\n".join(lines) + "\n"
 
