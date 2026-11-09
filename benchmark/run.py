@@ -296,7 +296,12 @@ def rollback_text(runs: list[dict]) -> str:
 
 
 def median_value(runs: list[dict], key: str) -> float:
-    values = [float(run[key]) for run in runs if run.get("status") in ("ok", "result_without_done") and key in run]
+    values = [
+        float(run[key])
+        for run in runs
+        if run.get("status") in ("ok", "result_without_done")
+        and run.get(key) is not None
+    ]
     return float(statistics.median(values)) if values else 0.0
 
 
