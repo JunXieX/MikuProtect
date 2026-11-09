@@ -72,11 +72,12 @@ def wait_for(log: Path, marker: str, timeout: float, process: subprocess.Popen |
 
 
 def timed_console_command(log: Path, process: subprocess.Popen, command: str, timeout: float,
-                         quiet_seconds: float = 1.0) -> float | None:
-    """Measure until console output has been quiet long enough to call the command complete."""
+                         marker: re.Pattern[str], quiet_seconds: float = 1.0) -> float | None:
+    """Measure until console output has been quiet long enough and the expected result marker appeared."""
     if process.stdin is None:
         return None
-    before = log.stat().st_size if log.exists() else 0
+    before_text = log_text(log)
+    before = len(before_text.encode("utf-8", errors="replace"))
     started = time.monotonic()
     process.stdin.write(command + "\n")
     process.stdin.flush()
@@ -85,12 +86,16 @@ def timed_console_command(log: Path, process: subprocess.Popen, command: str, ti
     deadline = started + timeout
     while time.monotonic() < deadline:
         time.sleep(0.25)
-        size = log.stat().st_size if log.exists() else before
+        text = log_text(log)
+        size = len(text.encode("utf-8", errors="replace"))
         if size != last_size:
             last_size = size
             last_change = time.monotonic()
-        elif size > before and time.monotonic() - last_change >= quiet_seconds:
-            return round(time.monotonic() - started, 3)
+        if size > before and time.monotonic() - last_change >= quiet_seconds:
+            new_text = text[len(before_text):]
+            if new_text.strip() and marker.search(new_text):
+                return round(time.monotonic() - started, 3)
+            return None
     return None
 
 
@@ -233,7 +238,13 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
                     "prism": "prism lookup",
                 }.get(variant)
                 if query_command:
-                    result["query_seconds"] = timed_console_command(log, process, query_command, 20.0)
+                    query_marker = {
+                        "mikuprotect": re.compile("查询结果"),
+                        "coreprotect": re.compile("CoreProtect - (?!Please specify)"),
+                        "prism": re.compile("prism|Prism"),
+                    }[variant]
+                    result["query_seconds"] = timed_console_command(
+                            log, process, query_command, 20.0, query_marker)
                 if variant != "baseline":
                     rollback_command = {
                         "mikuprotect": "mp rollback t:5m",
@@ -241,7 +252,13 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
                         "prism": "prism rollback",
                     }.get(variant)
                     if rollback_command:
-                        result["rollback_seconds"] = timed_console_command(log, process, rollback_command, 60.0)
+                        rollback_marker = {
+                            "mikuprotect": re.compile("回滚完成"),
+                            "coreprotect": re.compile("Rollback|rollback complete"),
+                            "prism": re.compile("Rollback|rollback"),
+                        }[variant]
+                        result["rollback_seconds"] = timed_console_command(
+                                log, process, rollback_command, 60.0, rollback_marker)
             result["max_rss_mb"] = round(rss_state["max_kb"] / 1024, 2)
             result["duration_seconds"] = round(time.monotonic() - started, 3)
             errors = [
