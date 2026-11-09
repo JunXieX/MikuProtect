@@ -12,7 +12,6 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 
 /**
@@ -52,9 +51,7 @@ public final class LookupRenderer {
             if (sender instanceof org.bukkit.entity.Player) {
                 sender.sendMessage(row(activity));
             } else {
-                String text = format(activity);
-                sender.sendMessage(TextUtil.color(text));
-                Bukkit.getLogger().info(TextUtil.plain(text));
+                sender.sendMessage(TextUtil.component(format(activity)));
             }
         }
 
@@ -141,10 +138,7 @@ public final class LookupRenderer {
     }
 
     private static void sendRaw(CommandSender sender, String message) {
-        sender.sendMessage(TextUtil.color(message));
-        if (!(sender instanceof org.bukkit.entity.Player)) {
-            Bukkit.getLogger().info(TextUtil.plain(message));
-        }
+        sender.sendMessage(TextUtil.component(message));
     }
 
     private static Component link(String label, String command) {

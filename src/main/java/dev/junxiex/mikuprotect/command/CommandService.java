@@ -24,7 +24,7 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletionException;
-import org.bukkit.Bukkit;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
@@ -554,7 +554,7 @@ public final class CommandService {
         World world;
         int index;
         if (tokens.size() == 4) {
-            world = Bukkit.getWorld(tokens.get(0));
+            world = plugin.getServer().getWorld(tokens.get(0));
             if (world == null) {
                 send(sender, "&c世界不存在: " + tokens.get(0));
                 return;
@@ -676,26 +676,25 @@ public final class CommandService {
     }
 
     private void send(CommandSender sender, String message) {
-        String text = TextUtil.PREFIX + message;
-        deliver(sender, TextUtil.color(text));
+        sendRaw(sender, TextUtil.PREFIX + message);
     }
 
     private void sendRaw(CommandSender sender, String message) {
-        deliver(sender, TextUtil.color(message));
+        deliver(sender, TextUtil.component(message));
     }
 
     /**
      * Vanilla console/RCON senders are not safe to message from arbitrary async threads; hop to the
      * global region when the callback is off the server thread.
      */
-    private void deliver(CommandSender sender, String colored) {
+    private void deliver(CommandSender sender, Component message) {
         Runnable task = () -> {
-            sender.sendMessage(colored);
+            sender.sendMessage(message);
             if (!(sender instanceof Player)) {
-                plugin.getLogger().info(TextUtil.plain(colored));
+                plugin.getLogger().info(TextUtil.plain(message));
             }
         };
-        if (org.bukkit.Bukkit.isPrimaryThread()) {
+        if (plugin.getServer().isPrimaryThread()) {
             task.run();
         } else {
             Scheduler.global(task);

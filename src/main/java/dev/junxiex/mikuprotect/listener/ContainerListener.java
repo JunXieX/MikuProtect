@@ -7,7 +7,6 @@ import dev.junxiex.mikuprotect.util.ItemCodec;
 import dev.junxiex.mikuprotect.util.Scheduler;
 import java.util.ArrayList;
 import java.util.List;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.Player;
@@ -208,6 +207,6 @@ public final class ContainerListener implements Listener {
             Scheduler.at(location, task);
             return;
         }
-        Bukkit.getRegionScheduler().runDelayed(plugin, location, scheduled -> task.run(), 1L);
+        plugin.getServer().getRegionScheduler().runDelayed(plugin, location, scheduled -> task.run(), 1L);
     }
 }

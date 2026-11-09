@@ -44,7 +44,7 @@ public final class ListenerRegistrar {
         }
         listeners.add(new BlockListener(recording, alerts));
         listeners.add(new ContainerListener(recording));
-        listeners.add(new EntityListener(recording));
+        listeners.add(new EntityListener(recording, plugin.getServer()));
         listeners.add(new PlayerListener(recording, config, storage, inspection));
         listeners.add(new WorldListener(recording));
         PluginManager manager = plugin.getServer().getPluginManager();

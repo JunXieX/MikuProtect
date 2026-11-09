@@ -4,6 +4,7 @@ import dev.junxiex.mikuprotect.model.ActionType;
 import dev.junxiex.mikuprotect.model.ActivityRecord;
 import dev.junxiex.mikuprotect.service.RecordingService;
 import org.bukkit.Location;
+import org.bukkit.Server;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -28,9 +29,11 @@ import org.bukkit.event.player.PlayerShearEntityEvent;
 public final class EntityListener implements Listener {
 
     private final RecordingService recording;
+    private final Server server;
 
-    public EntityListener(RecordingService recording) {
+    public EntityListener(RecordingService recording, Server server) {
         this.recording = recording;
+        this.server = server;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -93,7 +96,7 @@ public final class EntityListener implements Listener {
         // Only ENTITY_KILL needs the payload to respawn the entity; spawn/interact are high volume.
         if (action == ActionType.ENTITY_KILL && !(entity instanceof Player)) {
             try {
-                snapshot = org.bukkit.Bukkit.getUnsafe().serializeEntity(entity);
+                snapshot = server.getUnsafe().serializeEntity(entity);
             } catch (RuntimeException ignored) {
                 // 某些实体在事件阶段已不可序列化；记录类型与 UUID 仍然有价值
             }

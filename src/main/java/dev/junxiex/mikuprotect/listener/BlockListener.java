@@ -7,7 +7,6 @@ import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.util.BlockCodec;
 import dev.junxiex.mikuprotect.util.Scheduler;
 import java.util.List;
-import org.bukkit.Bukkit;
 import org.bukkit.ExplosionResult;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -147,7 +146,7 @@ public final class BlockListener implements Listener {
     public void onLeavesDecay(LeavesDecayEvent event) {
         Block block = event.getBlock();
         Location location = block.getLocation();
-        if (!owned(location)) {
+        if (!Scheduler.owned(location)) {
             return;
         }
         BlockState state = block.getState();
@@ -183,12 +182,12 @@ public final class BlockListener implements Listener {
             Location destination = block.getRelative(direction).getLocation();
             // 潜影盒一类容器被推动时，tile 数据跟着方块走，目标位置要带上它
             BlockState dataMeta = block.getState();
-            if (owned(destination)) {
+            if (Scheduler.owned(destination)) {
                 Block destinationBlock = destination.getBlock();
                 push(destination, action, null, data, destinationBlock.getBlockData(),
                         dataMeta, destinationBlock.getState());
             }
-            if (owned(source)) {
+            if (Scheduler.owned(source)) {
                 push(source, action, null, AIR, data, null, dataMeta);
             }
         }
@@ -261,7 +260,7 @@ public final class BlockListener implements Listener {
         }
         for (Block block : blocks) {
             Location location = block.getLocation();
-            if (!owned(location)) {
+            if (!Scheduler.owned(location)) {
                 continue;
             }
             BlockState state = block.getState();
@@ -276,7 +275,7 @@ public final class BlockListener implements Listener {
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
         Block block = event.getBlock();
         Location location = block.getLocation();
-        if (!owned(location)) {
+        if (!Scheduler.owned(location)) {
             return;
         }
         BlockData now = event.getBlockData();
@@ -291,7 +290,7 @@ public final class BlockListener implements Listener {
     public void onLiquidFlow(BlockFromToEvent event) {
         Block to = event.getToBlock();
         Location location = to.getLocation();
-        if (!owned(location)) {
+        if (!Scheduler.owned(location)) {
             return;
         }
         // 液体流动触发极频繁，只取方块状态，不做 tile 快照
@@ -320,7 +319,7 @@ public final class BlockListener implements Listener {
                 continue;
             }
             Location location = state.getLocation();
-            if (!owned(location)) {
+            if (!Scheduler.owned(location)) {
                 continue;
             }
             BlockState oldState = location.getBlock().getState();
@@ -347,7 +346,4 @@ public final class BlockListener implements Listener {
     }
 
     /** 当前线程是否拥有该位置所在的区域；Paper 上恒为 true。 */
-    private static boolean owned(Location location) {
-        return location != null && location.getWorld() != null && Bukkit.isOwnedByCurrentRegion(location);
-    }
 }

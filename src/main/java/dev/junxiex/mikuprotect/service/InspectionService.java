@@ -62,7 +62,7 @@ public final class InspectionService {
                 .limit(5);
         lookup.lookup(query).thenAccept(rows -> Scheduler.global(() -> print(player, block, rows)))
                 .exceptionally(error -> {
-                    Scheduler.global(() -> player.sendMessage(TextUtil.color(
+                    Scheduler.global(() -> player.sendMessage(TextUtil.component(
                             TextUtil.PREFIX + "&c检查失败: " + error.getMessage())));
                     return null;
                 });
@@ -72,14 +72,14 @@ public final class InspectionService {
         String position = block.getWorld().getName() + " " + block.getX() + ", " + block.getY() + ", "
                 + block.getZ();
         if (rows == null || rows.isEmpty()) {
-            player.sendMessage(TextUtil.color(TextUtil.PREFIX + "&7" + position + " 没有记录"));
+            player.sendMessage(TextUtil.component(TextUtil.PREFIX + "&7" + position + " 没有记录"));
             return;
         }
-        player.sendMessage(TextUtil.color(TextUtil.PREFIX + "&7检查 &f" + position + " &7最近 &f"
+        player.sendMessage(TextUtil.component(TextUtil.PREFIX + "&7检查 &f" + position + " &7最近 &f"
                 + rows.size() + " &7条："));
         LookupRenderer renderer = new LookupRenderer(config);
         for (StoredActivity row : rows) {
-            player.sendMessage(TextUtil.color(renderer.format(row)));
+            player.sendMessage(TextUtil.component(renderer.format(row)));
         }
     }
 }

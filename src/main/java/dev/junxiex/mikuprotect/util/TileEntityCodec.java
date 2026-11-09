@@ -8,7 +8,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import io.papermc.paper.datacomponent.item.ResolvableProfile;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.DyeColor;
+import org.bukkit.Server;
 import org.bukkit.block.Banner;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.BlockFace;
@@ -40,6 +44,8 @@ import org.bukkit.inventory.ItemStack;
  * fields keep their defaults.</p>
  */
 public final class TileEntityCodec {
+
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private static final int FORMAT_VERSION = 1;
 
@@ -113,7 +119,8 @@ public final class TileEntityCodec {
                     }
                 } else if (state instanceof Skull skull) {
                     out.writeByte(TYPE_SKULL);
-                    out.writeUTF(skull.getOwningPlayer() == null ? "" : skull.getOwningPlayer().getUniqueId().toString());
+                    ResolvableProfile profile = skull.getProfile();
+                    out.writeUTF(profile == null || profile.uuid() == null ? "" : profile.uuid().toString());
                     out.writeUTF(skull.getRotation() == null ? "" : skull.getRotation().name());
                 } else if (state instanceof Jukebox jukebox) {
                     out.writeByte(TYPE_JUKEBOX);
@@ -128,7 +135,8 @@ public final class TileEntityCodec {
                 } else if (state instanceof CommandBlock commandBlock) {
                     out.writeByte(TYPE_COMMAND);
                     writeString(out, commandBlock.getCommand());
-                    writeString(out, commandBlock.getName());
+                    Component name = commandBlock.name();
+                    writeString(out, name == null ? "" : LEGACY.serialize(name));
                 } else if (state instanceof Structure structure) {
                     out.writeByte(TYPE_STRUCTURE);
                     writeString(out, structure.getStructureName());
@@ -166,7 +174,7 @@ public final class TileEntityCodec {
      * already have set the block data; this only fills the tile-entity part and calls
      * {@code update(true, false)}.
      */
-    public static boolean apply(BlockState state, byte[] payload) {
+    public static boolean apply(BlockState state, byte[] payload, Server server) {
         if (state == null || payload == null || payload.length == 0) {
             return false;
         }
@@ -269,7 +277,8 @@ public final class TileEntityCodec {
                     if (state instanceof Skull skull) {
                         String uuid = readStringSafely(in, "");
                         if (!uuid.isEmpty()) {
-                            skull.setOwningPlayer(org.bukkit.Bukkit.getOfflinePlayer(java.util.UUID.fromString(uuid)));
+                            skull.setProfile(ResolvableProfile.resolvableProfile(
+                                    server.createProfile(java.util.UUID.fromString(uuid))));
                         }
                         String rotation = readStringSafely(in, "");
                         if (!rotation.isEmpty()) {
@@ -307,7 +316,7 @@ public final class TileEntityCodec {
                 case TYPE_COMMAND -> {
                     if (state instanceof CommandBlock commandBlock) {
                         commandBlock.setCommand(readStringSafely(in, commandBlock.getCommand()));
-                        commandBlock.setName(readStringSafely(in, commandBlock.getName()));
+                        commandBlock.name(LEGACY.deserialize(readStringSafely(in, "")));
                     }
                 }
                 case TYPE_STRUCTURE -> {
@@ -388,9 +397,10 @@ public final class TileEntityCodec {
             out.writeUTF("");
             out.writeUTF("");
         } else {
-            String[] lines = side.getLines();
+            List<Component> lines = side.lines();
             for (int index = 0; index < 5; index++) {
-                out.writeUTF(index < lines.length && lines[index] != null ? lines[index] : "");
+                Component line = index < lines.size() ? lines.get(index) : null;
+                out.writeUTF(line == null ? "" : LEGACY.serialize(line));
             }
         }
         out.writeUTF(side == null || side.getColor() == null ? "" : side.getColor().name());
@@ -401,7 +411,7 @@ public final class TileEntityCodec {
         for (int index = 0; index < 5; index++) {
             String line = readStringSafely(in, "");
             if (side != null && index < 4) {
-                side.setLine(index, line);
+                side.line(index, LEGACY.deserialize(line));
             }
         }
         String color = readStringSafely(in, "");

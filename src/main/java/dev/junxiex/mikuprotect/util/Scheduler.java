@@ -3,7 +3,6 @@ package dev.junxiex.mikuprotect.util;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.key.Key;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.plugin.Plugin;
@@ -31,7 +30,7 @@ public final class Scheduler {
     public static boolean folia() {
         Boolean cached = folia;
         if (cached == null) {
-            cached = Bukkit.getServer() != null
+            cached = plugin != null && plugin.getServer() != null
                     && io.papermc.paper.ServerBuildInfo.buildInfo().isBrandCompatible(Key.key("papermc", "folia"));
             folia = cached;
         }
@@ -39,15 +38,15 @@ public final class Scheduler {
     }
 
     public static void global(Runnable task) {
-        Bukkit.getGlobalRegionScheduler().run(plugin, scheduled -> task.run());
+        plugin.getServer().getGlobalRegionScheduler().run(plugin, scheduled -> task.run());
     }
 
     public static void async(Runnable task) {
-        Bukkit.getAsyncScheduler().runNow(plugin, scheduled -> task.run());
+        plugin.getServer().getAsyncScheduler().runNow(plugin, scheduled -> task.run());
     }
 
     public static void asyncDelayed(Runnable task, long delayMillis) {
-        Bukkit.getAsyncScheduler().runDelayed(plugin, scheduled -> task.run(), delayMillis, TimeUnit.MILLISECONDS);
+        plugin.getServer().getAsyncScheduler().runDelayed(plugin, scheduled -> task.run(), delayMillis, TimeUnit.MILLISECONDS);
     }
 
     public static void at(Location location, Runnable task) {
@@ -55,7 +54,7 @@ public final class Scheduler {
             global(task);
             return;
         }
-        Bukkit.getRegionScheduler().run(plugin, location, scheduled -> task.run());
+        plugin.getServer().getRegionScheduler().run(plugin, location, scheduled -> task.run());
     }
 
     public static void entity(Entity entity, Runnable task) {
@@ -75,15 +74,15 @@ public final class Scheduler {
     }
 
     public static ScheduledTask timerGlobal(Runnable task, long delayTicks, long periodTicks) {
-        return Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, scheduled -> task.run(), delayTicks, periodTicks);
+        return plugin.getServer().getGlobalRegionScheduler().runAtFixedRate(plugin, scheduled -> task.run(), delayTicks, periodTicks);
     }
 
     public static ScheduledTask timerAsync(Runnable task, long delayMillis, long periodMillis) {
-        return Bukkit.getAsyncScheduler().runAtFixedRate(plugin, scheduled -> task.run(), delayMillis, periodMillis,
+        return plugin.getServer().getAsyncScheduler().runAtFixedRate(plugin, scheduled -> task.run(), delayMillis, periodMillis,
                 TimeUnit.MILLISECONDS);
     }
 
     public static boolean owned(Location location) {
-        return location != null && location.getWorld() != null && Bukkit.isOwnedByCurrentRegion(location);
+        return location != null && location.getWorld() != null && plugin.getServer().isOwnedByCurrentRegion(location);
     }
 }

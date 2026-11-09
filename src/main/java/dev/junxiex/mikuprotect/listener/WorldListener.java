@@ -3,8 +3,8 @@ package dev.junxiex.mikuprotect.listener;
 import dev.junxiex.mikuprotect.model.ActionType;
 import dev.junxiex.mikuprotect.model.ActivityRecord;
 import dev.junxiex.mikuprotect.service.RecordingService;
+import dev.junxiex.mikuprotect.util.Scheduler;
 import dev.junxiex.mikuprotect.util.BlockCodec;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.BlockState;
@@ -39,7 +39,7 @@ public final class WorldListener implements Listener {
                 continue;
             }
             Location location = state.getLocation();
-            if (!owned(location)) {
+            if (!Scheduler.owned(location)) {
                 continue;
             }
             BlockState oldState = location.getBlock().getState();
@@ -55,7 +55,7 @@ public final class WorldListener implements Listener {
                 continue;
             }
             Location location = state.getLocation();
-            if (!owned(location)) {
+            if (!Scheduler.owned(location)) {
                 continue;
             }
             // 被吸收的液体方块变成空气
@@ -80,7 +80,4 @@ public final class WorldListener implements Listener {
         recording.recordDeferredBlock(skeleton, metaState, oldMetaState);
     }
 
-    private static boolean owned(Location location) {
-        return location != null && location.getWorld() != null && Bukkit.isOwnedByCurrentRegion(location);
-    }
 }

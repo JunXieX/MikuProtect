@@ -23,7 +23,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.bukkit.Bukkit;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -146,7 +147,7 @@ public final class RollbackService {
             if (change.targetBlock() == null) {
                 continue;
             }
-            World world = Bukkit.getWorld(change.worldUuid());
+            World world = plugin.getServer().getWorld(change.worldUuid());
             if (world == null) {
                 continue;
             }
@@ -267,11 +268,11 @@ public final class RollbackService {
                     if (change.targetBlock() == null) {
                         continue;
                     }
-                    World world = Bukkit.getWorld(change.worldUuid());
+                    World world = plugin.getServer().getWorld(change.worldUuid());
                     if (world == null) {
                         continue;
                     }
-                    org.bukkit.block.data.BlockData data = BlockCodec.decode(change.targetBlock());
+                    org.bukkit.block.data.BlockData data = BlockCodec.decode(change.targetBlock(), plugin.getServer());
                     if (data != null) {
                         player.sendBlockChange(new Location(world, change.x(), change.y(), change.z()), data);
                     }
@@ -315,7 +316,7 @@ public final class RollbackService {
         List<ChunkWork> works = new ArrayList<>(chunks.values());
         AtomicInteger remaining = new AtomicInteger(works.size());
         for (ChunkWork work : works) {
-            World world = Bukkit.getWorld(work.worldUuid);
+            World world = plugin.getServer().getWorld(work.worldUuid);
             if (world == null) {
                 work.result.failed += work.changes.size();
                 work.result.completed = true;
@@ -370,7 +371,7 @@ public final class RollbackService {
                 work.result.completed = true;
                 return;
             }
-            World world = Bukkit.getWorld(work.worldUuid);
+            World world = plugin.getServer().getWorld(work.worldUuid);
             if (world == null) {
                 work.result.failed += work.changes.size() - work.index;
                 work.result.completed = true;
@@ -499,7 +500,7 @@ public final class RollbackService {
 
     private AppliedChange applyChange(World world, PlannedChange change, RollbackRequest request) {
         Location location = new Location(world, change.x(), change.y(), change.z());
-        if (!Bukkit.isOwnedByCurrentRegion(location)) {
+        if (!plugin.getServer().isOwnedByCurrentRegion(location)) {
             throw new IllegalStateException("not owned by current region");
         }
         if (change.targetBlock() != null) {
@@ -507,19 +508,19 @@ public final class RollbackService {
             BlockState beforeState = block.getState();
             String beforeData = block.getBlockData().getAsString();
             byte[] beforeMeta = TileEntityCodec.encode(beforeState);
-            org.bukkit.block.data.BlockData target = BlockCodec.decode(change.targetBlock());
+            org.bukkit.block.data.BlockData target = BlockCodec.decode(change.targetBlock(), plugin.getServer());
             if (target == null) {
                 return null;
             }
             block.setBlockData(target, request.applyPhysics);
-            if (change.targetMeta() != null && !TileEntityCodec.apply(block.getState(false), change.targetMeta())) {
+            if (change.targetMeta() != null && !TileEntityCodec.apply(block.getState(false), change.targetMeta(), plugin.getServer())) {
                 // The block data was already changed; put the previous block and tile payload back
                 // so the row can remain unmarked and retried instead of leaving a half-restore.
-                org.bukkit.block.data.BlockData previous = BlockCodec.decode(beforeData);
+                org.bukkit.block.data.BlockData previous = BlockCodec.decode(beforeData, plugin.getServer());
                 if (previous != null) {
                     block.setBlockData(previous, false);
                     if (beforeMeta != null) {
-                        TileEntityCodec.apply(block.getState(false), beforeMeta);
+                        TileEntityCodec.apply(block.getState(false), beforeMeta, plugin.getServer());
                     }
                 }
                 throw new IllegalStateException("tile entity restore failed");
@@ -555,7 +556,7 @@ public final class RollbackService {
             byte[] beforeMeta = TileEntityCodec.encode(sign);
             if (change.targetMeta() != null) {
                 // A legacy/migrated sign payload may not carry lines; text below is authoritative.
-                TileEntityCodec.apply(sign, change.targetMeta());
+                TileEntityCodec.apply(sign, change.targetMeta(), plugin.getServer());
             }
             applyText(sign, change.targetText());
             sign.update(true, false);
@@ -566,7 +567,7 @@ public final class RollbackService {
         if (change.entityType() != null || change.entityUuid() != null) {
             Entity existing = findEntity(world, change.entityUuid());
             if (change.removeEntity()) {
-                if (existing != null && !Bukkit.isOwnedByCurrentRegion(existing)) {
+                if (existing != null && !plugin.getServer().isOwnedByCurrentRegion(existing)) {
                     return null;
                 }
                 if (existing != null) {
@@ -581,7 +582,7 @@ public final class RollbackService {
             Entity spawned = null;
             if (change.targetMeta() != null && change.targetMeta().length > 0) {
                 try {
-                    spawned = org.bukkit.Bukkit.getUnsafe()
+                    spawned = plugin.getServer().getUnsafe()
                             .deserializeEntity(change.targetMeta(), world, true, true);
                 } catch (RuntimeException ignored) {
                     // 数据损坏或版本差异时回退到只恢复实体类型
@@ -623,7 +624,7 @@ public final class RollbackService {
 
     private long budgetNanos() {
         MikuConfig config = plugin.config();
-        double tick = Bukkit.getAverageTickTime();
+        double tick = plugin.getServer().getAverageTickTime();
         long budgetMs = config.rollbackBudgetMs;
         if (tick > 0) {
             budgetMs = Math.round(config.rollbackBudgetMs + config.rollbackMaxBudgetMs - tick);
@@ -632,11 +633,11 @@ public final class RollbackService {
         return budgetMs * 1_000_000L;
     }
 
-    private static Entity findEntity(World world, UUID uuid) {
+    private Entity findEntity(World world, UUID uuid) {
         if (uuid == null) {
             return null;
         }
-        Entity direct = Bukkit.getEntity(uuid);
+        Entity direct = plugin.getServer().getEntity(uuid);
         if (direct != null) {
             return direct;
         }
@@ -655,15 +656,32 @@ public final class RollbackService {
     private static void applyText(Sign sign, String text) {
         String[] lines = text == null ? new String[0] : text.split("\n", -1);
         for (int index = 0; index < 4; index++) {
-            sign.getSide(Side.FRONT).setLine(index, index < lines.length ? lines[index] : "");
-            sign.getSide(Side.BACK).setLine(index, index + 4 < lines.length ? lines[index + 4] : "");
+            sign.getSide(Side.FRONT).line(index, SIGN_LEGACY.deserialize(
+                    index < lines.length ? lines[index] : ""));
+            sign.getSide(Side.BACK).line(index, SIGN_LEGACY.deserialize(
+                    index + 4 < lines.length ? lines[index + 4] : ""));
         }
     }
 
     private static String signText(Sign sign) {
-        return String.join("\n", sign.getSide(Side.FRONT).getLines())
-                + "\n" + String.join("\n", sign.getSide(Side.BACK).getLines());
+        StringBuilder text = new StringBuilder();
+        appendSide(text, sign.getSide(Side.FRONT).lines());
+        text.append('\n');
+        appendSide(text, sign.getSide(Side.BACK).lines());
+        return text.toString();
     }
+
+    private static void appendSide(StringBuilder text, java.util.List<Component> lines) {
+        for (int index = 0; index < 4; index++) {
+            if (index > 0) {
+                text.append('\n');
+            }
+            Component line = lines != null && index < lines.size() ? lines.get(index) : null;
+            text.append(line == null ? "" : SIGN_LEGACY.serialize(line));
+        }
+    }
+
+    private static final LegacyComponentSerializer SIGN_LEGACY = LegacyComponentSerializer.legacySection();
 
     private static final UUID CONSOLE_ACTOR = new UUID(0L, 0L);
 

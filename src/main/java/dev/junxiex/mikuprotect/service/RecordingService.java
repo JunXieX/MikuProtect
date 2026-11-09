@@ -19,7 +19,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.block.BlockState;
@@ -110,10 +109,10 @@ public final class RecordingService {
         if (record == null || record.action == null) {
             return false;
         }
-        if ((Bukkit.isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia())
+        if ((plugin.getServer().isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia())
                 && hasPreLogListeners()) {
             MikuProtectPreLogEvent event = new MikuProtectPreLogEvent(record);
-            Bukkit.getPluginManager().callEvent(event);
+            plugin.getServer().getPluginManager().callEvent(event);
             if (event.isCancelled()) {
                 return false;
             }
@@ -136,7 +135,7 @@ public final class RecordingService {
         if (skeleton == null || skeleton.action == null) {
             return false;
         }
-        boolean primary = Bukkit.isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia();
+        boolean primary = plugin.getServer().isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia();
         if (primary && hasPreLogListeners()) {
             try {
                 return record(skeleton.withMeta(TileEntityCodec.encode(now), TileEntityCodec.encode(old)));
@@ -165,7 +164,7 @@ public final class RecordingService {
             return record(materializeContainer(location, action, player, drafts));
         }
         ActivityRecord skeleton = ActivityRecord.container(location, action, player, List.of());
-        boolean primary = Bukkit.isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia();
+        boolean primary = plugin.getServer().isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia();
         if (primary && hasPreLogListeners()) {
             return record(materializeContainer(location, action, player, drafts));
         }
@@ -189,7 +188,7 @@ public final class RecordingService {
         if (skeleton == null || skeleton.action == null) {
             return false;
         }
-        boolean primary = Bukkit.isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia();
+        boolean primary = plugin.getServer().isPrimaryThread() || dev.junxiex.mikuprotect.util.Scheduler.folia();
         if (primary && hasPreLogListeners()) {
             try {
                 return record(skeleton.withMeta(TileEntityCodec.encode(now), TileEntityCodec.encode(old)));
@@ -209,7 +208,7 @@ public final class RecordingService {
             return false;
         }
         if (config.ignoreCreative && record.userName != null) {
-            Player online = Bukkit.getPlayerExact(record.userName);
+            Player online = plugin.getServer().getPlayerExact(record.userName);
             if (online != null && online.getGameMode() == GameMode.CREATIVE) {
                 return false;
             }

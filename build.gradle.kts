@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.3.build.38-alpha")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.244-stable")
     compileOnly("com.zaxxer:HikariCP:7.0.2")
     // 供 MikuProtectLoader 引用 MavenLibraryResolver 的 aether 类型
     compileOnly("org.apache.maven.resolver:maven-resolver-api:1.9.22")
@@ -27,7 +27,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
     // ActivityRecord 的方法签名引用 Bukkit 类型，测试运行期也需要 paper-api
-    testImplementation("io.papermc.paper:paper-api:26.3.build.38-alpha")
+    testImplementation("io.papermc.paper:paper-api:26.3.build.244-stable")
     testImplementation("org.duckdb:duckdb_jdbc:1.4.5.0")
 }
 

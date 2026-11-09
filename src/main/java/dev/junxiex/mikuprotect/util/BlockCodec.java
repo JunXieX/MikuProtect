@@ -1,6 +1,6 @@
 package dev.junxiex.mikuprotect.util;
 
-import org.bukkit.Bukkit;
+import org.bukkit.Server;
 import org.bukkit.block.data.BlockData;
 
 public final class BlockCodec {
@@ -12,12 +12,12 @@ public final class BlockCodec {
         return data == null ? null : data.getAsString();
     }
 
-    public static BlockData decode(String value) {
+    public static BlockData decode(String value, Server server) {
         if (value == null || value.isBlank()) {
             return null;
         }
         try {
-            return Bukkit.createBlockData(value);
+            return server.createBlockData(value);
         } catch (IllegalArgumentException exception) {
             return null;
         }

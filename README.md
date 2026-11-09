@@ -2,7 +2,7 @@
 
 作者：JunXieX　|　MikuMC系列插件交流群：1105054380　|　非开源项目，请勿二次分发
 
-MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩家行为记录，支持查询、回滚、还原、预览与撤销。默认使用 DuckDB 单文件存储，可切换 MariaDB；所有世界修改按区块分组并受 tick 预算限制，红石机器与方块状态按记录时的完整状态恢复。
+MikuProtect 是纯 Paper 插件（paper-plugin.yml、Brigadier、Adventure、Paper/Folia 调度器），不依赖 Bukkit `plugin.yml` 兼容层，为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩家行为记录，支持查询、回滚、还原、预览与撤销。默认使用 DuckDB 单文件存储，可切换 MariaDB；所有世界修改按区块分组并受 tick 预算限制，红石机器与方块状态按记录时的完整状态恢复。
 
 ## 功能特性
 
@@ -30,7 +30,7 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 
 ## 安装
 
-1. 将 `MikuProtect-1.2.0.jar` 放入服务端 `plugins/`。
+1. 将 `MikuProtect-1.2.1.jar` 放入服务端 `plugins/`。
 2. 启动服务器，首次会生成 `plugins/MikuProtect/config.yml` 与 `plugins/MikuProtect/data/`；loader 会联网下载 DuckDB/MariaDB/HikariCP，首次启动需要可访问 Maven Central 镜像。
 3. 默认使用 DuckDB，无需额外安装数据库。
 4. 如需 MariaDB，先创建数据库（例如 `CREATE DATABASE mikuprotect`），再修改 `storage.type: mariadb` 并填写连接信息，重启服务器。
