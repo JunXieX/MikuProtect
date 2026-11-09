@@ -241,7 +241,7 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
                     query_marker = {
                         "mikuprotect": re.compile("查询结果"),
                         "coreprotect": re.compile("CoreProtect - (?!Please specify)"),
-                        "prism": re.compile("prism|Prism"),
+                        "prism": re.compile("Prism 》 (?!The radius parameter)"),
                     }[variant]
                     result["query_seconds"] = timed_console_command(
                             log, process, query_command, 20.0, query_marker)

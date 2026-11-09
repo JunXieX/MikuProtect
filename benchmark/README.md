@@ -73,7 +73,7 @@ This is a **relative** comparison of event-logging overhead:
 - TNT block destruction plus hopper/container and zombie-death paths, not normal player mining/placing;
 - storage engines are plugin defaults (DuckDB / SQLite / H2-capable defaults), so storage size and
   write throughput are not purely listener overhead;
-- query/rollback commands differ by plugin; their output and confirmation behavior is adapter-specific;
+- query/rollback commands differ by plugin; console-invalid commands are shown as `-`, not as timings; their output and confirmation behavior is adapter-specific;
 - CoreProtect 24.2-dev is an auto-build; the workflow consumes the latest-build asset, not a frozen upstream release.
 
 Do not treat a single run as a production TPS guarantee. Use the table for regression direction,
