@@ -22,6 +22,9 @@ public final class QuerySql {
     /** 调用方给的页大小非法时的兜底值。 */
     private static final int DEFAULT_PAGE_LIMIT = 1000;
 
+    /** Deep OFFSET scans quickly become a read-lock hotspot; beyond this cap no useful page exists. */
+    private static final long MAX_OFFSET = 1_000_000L;
+
     private final String whereClause;
     private final String orderClause;
     private final String pageClause;
@@ -63,12 +66,17 @@ public final class QuerySql {
     private static QuerySql build(LookupQuery filter, IdRegistry registry, int limit) {
         List<Object> params = new ArrayList<>();
         String where = buildWhere(filter, registry, params);
-        long offset = (long) (Math.max(1, filter == null ? 1 : filter.page) - 1) * limit;
+        int requestedPage = Math.max(1, filter == null ? 1 : filter.page);
+        int maxPage = (int) Math.min(Integer.MAX_VALUE, MAX_OFFSET / limit + 1);
+        long offset = (long) (requestedPage - 1) * limit;
         boolean ascending = filter != null && filter.ascending;
         String order = ascending
                 ? " ORDER BY a.time ASC, a.id ASC"
                 : " ORDER BY a.time DESC, a.id DESC";
-        String page = " LIMIT " + limit + " OFFSET " + offset;
+        // Beyond maxPage return an empty page instead of repeating the last reachable rows.
+        String page = requestedPage > maxPage
+                ? " LIMIT 0 OFFSET 0"
+                : " LIMIT " + limit + " OFFSET " + offset;
         return new QuerySql(where, order, page, List.copyOf(params));
     }
 

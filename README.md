@@ -30,7 +30,7 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 
 ## 安装
 
-1. 将 `MikuProtect-1.1.1.jar` 放入服务端 `plugins/`。
+1. 将 `MikuProtect-1.2.0.jar` 放入服务端 `plugins/`。
 2. 启动服务器，首次会生成 `plugins/MikuProtect/config.yml` 与 `plugins/MikuProtect/data/`；loader 会联网下载 DuckDB/MariaDB/HikariCP，首次启动需要可访问 Maven Central 镜像。
 3. 默认使用 DuckDB，无需额外安装数据库。
 4. 如需 MariaDB，先创建数据库（例如 `CREATE DATABASE mikuprotect`），再修改 `storage.type: mariadb` 并填写连接信息，重启服务器。
@@ -49,6 +49,15 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 | `web` | 只读 HTTP API 开关、监听地址、端口、API Key、最大返回条数、速率限制 |
 | `alerts` | 矿物告警开关、告警材质、接收权限 |
 
+### Web API
+
+启用后提供只读接口，需在请求头带 `Authorization: Bearer <api-key>`：
+
+- `GET /api/v1/status`
+- `GET /api/v1/activities?user=Steve&world=world&material=DIAMOND_ORE&limit=20&page=1&since=<epochMillis>`
+
+`since` 缺省或早于查询窗口时，服务端会按 `lookup.default-since` 回退；窗口最长为 365 天，避免深分页扫描。所有请求（包括未认证请求）都计入来源 IP 速率限制。
+
 默认开启全部保护项，包括活塞、漏斗、发射器、液体、爆炸与容器事务；红石机器相关项不要随意关闭。
 
 ### 性能档位
@@ -63,7 +72,7 @@ MikuProtect 为 Paper / Folia 26.3 服务器提供方块、容器、实体与玩
 
 选择 `auto` 或固定档位时，会覆盖对应的 `recording.*`、`storage.duckdb.*`、`storage.mariadb.pool-size`、`rollback.*` 和 `worldedit-max-blocks` 数值；需要完全手动调参时设为 `manual`。旧配置没有 `performance` 段时按 `manual` 处理，不会在升级后改变现有参数。
 
-修改档位、队列/批量/刷盘、DuckDB 线程/内存或存储类型后需要重启服务器；`/mp reload` 只更新过滤、查询、回滚策略等服务配置。
+修改档位、队列容量、DuckDB 线程/内存或存储类型后需要重启服务器；批量大小、刷盘间隔、过滤、查询和回滚策略会在 `/mp reload` 后生效。
 
 ### 性能对比 CI
 

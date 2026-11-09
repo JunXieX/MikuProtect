@@ -4,7 +4,6 @@ main: dev.junxiex.mikuprotect.MikuProtectPlugin
 loader: dev.junxiex.mikuprotect.MikuProtectLoader
 api-version: '26.3'
 folia-supported: true
-softdepend: [ WorldEdit, FastAsyncWorldEdit ]
 dependencies:
   server:
     WorldEdit:

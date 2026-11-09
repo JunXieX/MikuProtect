@@ -17,6 +17,9 @@ import org.bukkit.configuration.file.FileConfiguration;
  */
 public final class MikuConfig {
 
+    /** Hard ceiling for rollback/restore working sets; a typo must not become an OOM switch. */
+    private static final int MAX_ROLLBACK_ROWS = 1_000_000;
+
     public final StorageType storageType;
     public final String duckdbFile;
     public final String duckdbMemoryLimit;
@@ -190,9 +193,14 @@ public final class MikuConfig {
         this.pageSize = Math.max(1, config.getInt("lookup.page-size", 10));
         this.maxPageSize = Math.max(this.pageSize, config.getInt("lookup.max-page-size", 100));
 
-        this.rollbackMaxRows = Math.max(1000, profile == null
+        int configuredMaxRows = profile == null
                 ? config.getInt("rollback.max-rows", 200000)
-                : profile.rollbackMaxRows);
+                : profile.rollbackMaxRows;
+        if (configuredMaxRows > MAX_ROLLBACK_ROWS) {
+            logger.warning("rollback.max-rows=" + configuredMaxRows + " exceeds "
+                    + MAX_ROLLBACK_ROWS + "; clamped");
+        }
+        this.rollbackMaxRows = Math.min(MAX_ROLLBACK_ROWS, Math.max(1000, configuredMaxRows));
         this.rollbackBudgetMs = Math.max(1L, profile == null
                 ? config.getLong("rollback.budget-ms", 25L)
                 : profile.rollbackBudgetMs);

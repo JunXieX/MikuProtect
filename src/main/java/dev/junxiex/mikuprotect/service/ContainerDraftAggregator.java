@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -44,9 +46,11 @@ final class ContainerDraftAggregator {
 
     private final ConcurrentHashMap<Key, Entry> pending = new ConcurrentHashMap<>();
     private final long windowMs;
+    private final Logger logger;
 
-    ContainerDraftAggregator(long windowMs) {
+    ContainerDraftAggregator(long windowMs, Logger logger) {
         this.windowMs = Math.max(100L, windowMs);
+        this.logger = logger;
     }
 
     boolean offer(Location location, ActionType action, Player player, List<ContainerDraft> drafts) {
@@ -73,26 +77,30 @@ final class ContainerDraftAggregator {
 
     void flush(Consumer<ActivityRecord> sink, boolean all) {
         long now = System.currentTimeMillis();
-        for (Map.Entry<Key, Entry> entry : pending.entrySet()) {
-            Entry value = entry.getValue();
-            if (value == null || (!all && now - value.createdAt < windowMs)) {
-                continue;
-            }
-            if (!pending.remove(entry.getKey(), value)) {
-                continue;
-            }
-            try {
-                List<ContainerChange> changes = new ArrayList<>(value.changes.size());
-                for (ContainerDraft draft : value.changes.values()) {
+        List<Entry> ready = new ArrayList<>();
+        for (Key key : pending.keySet()) {
+            // See ContainerAggregator: remove under the CHM key lock, encode after it is detached.
+            pending.computeIfPresent(key, (ignored, value) -> {
+                if (!all && now - value.createdAt < windowMs) {
+                    return value;
+                }
+                ready.add(value);
+                return null;
+            });
+        }
+        for (Entry value : ready) {
+            List<ContainerChange> changes = new ArrayList<>(value.changes.size());
+            for (ContainerDraft draft : value.changes.values()) {
+                try {
                     changes.add(new ContainerChange(draft.slot(), ItemCodec.encode(draft.before()),
                             ItemCodec.encode(draft.after()), draft.beforeAmount(), draft.afterAmount()));
+                } catch (RuntimeException exception) {
+                    logger.log(Level.WARNING, "Failed to encode one deferred container slot", exception);
                 }
-                if (!changes.isEmpty()) {
-                    sink.accept(ActivityRecord.container(value.location, value.action, value.user,
-                            value.userUuid, changes));
-                }
-            } catch (RuntimeException ignored) {
-                // A single unencodable item must not stop the writer loop; the rest still flush.
+            }
+            if (!changes.isEmpty()) {
+                sink.accept(ActivityRecord.container(value.location, value.action, value.user,
+                        value.userUuid, changes));
             }
         }
     }

@@ -67,8 +67,12 @@ public final class QueryParser {
                 if (world.isEmpty()) {
                     return fail("世界名不可为空，例如 #world_nether", warnings, filters);
                 }
-                query.world(world);
-                filters++;
+                // #global is the documented "all worlds" token; a real world named global is
+                // still addressable with w:global.
+                if (!world.equalsIgnoreCase("global")) {
+                    query.world(world);
+                    filters++;
+                }
                 continue;
             }
             int colon = token.indexOf(':');

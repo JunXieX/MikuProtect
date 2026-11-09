@@ -30,7 +30,7 @@ public final class Permissions {
     private Permissions() {
     }
 
-    public static void register(Plugin plugin) {
+    public static void register(Plugin plugin, String alertPermission) {
         add(plugin, COMMAND, "Use the /mp command", PermissionDefault.OP);
         add(plugin, LOOKUP, "Use lookup and near", PermissionDefault.OP);
         add(plugin, ROLLBACK, "Perform rollbacks", PermissionDefault.OP);
@@ -42,6 +42,9 @@ public final class Permissions {
         add(plugin, RELOAD, "Reload the configuration", PermissionDefault.OP);
         add(plugin, TELEPORT, "Teleport to logged positions", PermissionDefault.OP);
         add(plugin, ALERTS, "Receive ore alerts", PermissionDefault.OP);
+        if (alertPermission != null && !alertPermission.isBlank() && !alertPermission.equals(ALERTS)) {
+            add(plugin, alertPermission, "Receive ore alerts", PermissionDefault.OP);
+        }
         add(plugin, INSPECT, "Use the inspector", PermissionDefault.OP);
     }
 

@@ -85,7 +85,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
         this.listenerRegistrar = new ListenerRegistrar(this, config, recording, alerts, storage, inspection);
         this.listenerRegistrar.register();
         this.commandService.registerCommands();
-        Permissions.register(this);
+        Permissions.register(this, config.alertPermission);
 
         this.api = new MikuProtectAPIImpl(this);
         getServer().getServicesManager().register(MikuProtectAPI.class, api, this, ServicePriority.Normal);
@@ -139,6 +139,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
         if (next.storageType != config.storageType) {
             throw new IllegalStateException("storage.type 变更需要重启服务器");
         }
+        Permissions.register(this, next.alertPermission);
         this.config = next;
         this.alerts = new AlertService(this, next);
         if (recording != null) {
@@ -201,12 +202,13 @@ public final class MikuProtectPlugin extends JavaPlugin {
             Class<?> type = Class.forName("dev.junxiex.mikuprotect.integration.WorldEditIntegration", true,
                     getClass().getClassLoader());
             Object instance = type.getConstructor(MikuProtectPlugin.class).newInstance(this);
-            type.getMethod("register").invoke(instance);
             this.worldEdit = instance;
+            type.getMethod("register").invoke(instance);
             getLogger().info("WorldEdit integration enabled");
-        } catch (Throwable throwable) {
-            getLogger().warning("WorldEdit integration unavailable: " + throwable.getMessage());
-            this.worldEdit = null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            // register() may have reached the event bus before failing; unregister before retrying.
+            disableWorldEdit();
+            getLogger().warning("WorldEdit integration unavailable: " + failure.getMessage());
         }
     }
 
@@ -218,7 +220,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
         }
         try {
             instance.getClass().getMethod("unregister").invoke(instance);
-        } catch (Throwable ignored) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             // WorldEdit may already be disabled during shutdown
         }
     }

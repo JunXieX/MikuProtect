@@ -10,6 +10,9 @@ import java.util.Set;
  */
 public final class LookupQuery {
 
+    /** A larger page number only creates a deeper OFFSET scan, not more useful results. */
+    public static final int MAX_PAGE = 100_000;
+
     public String worldName;
     public String userName;
     public Set<ActionType> actions = new LinkedHashSet<>();
@@ -115,7 +118,7 @@ public final class LookupQuery {
     }
 
     public LookupQuery page(int value) {
-        this.page = Math.max(1, value);
+        this.page = Math.min(MAX_PAGE, Math.max(1, value));
         return this;
     }
 

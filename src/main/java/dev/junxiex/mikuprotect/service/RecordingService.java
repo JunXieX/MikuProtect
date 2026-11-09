@@ -35,6 +35,7 @@ public final class RecordingService {
     private volatile MikuConfig config;
     private final Storage storage;
     private final BlockingQueue<QueuedRecord> queue;
+    private final int queueCapacity;
     private final ContainerAggregator containerAggregator;
     private final ContainerDraftAggregator containerDraftAggregator;
     private final WalService wal;
@@ -77,13 +78,15 @@ public final class RecordingService {
         this.config = config;
         this.storage = storage;
         this.queue = new ArrayBlockingQueue<>(config.queueCapacity);
+        this.queueCapacity = config.queueCapacity;
         this.containerAggregator = new ContainerAggregator(config.containerAggregationWindowMs);
-        this.containerDraftAggregator = new ContainerDraftAggregator(config.containerAggregationWindowMs);
+        this.containerDraftAggregator = new ContainerDraftAggregator(
+                config.containerAggregationWindowMs, plugin.getLogger());
         this.wal = new WalService(plugin.getDataFolder().toPath().resolve("wal"), plugin.getLogger(),
                 config.walEnabled);
     }
 
-    /** Replaces the filter snapshot after /mp reload. Queue capacity and batch size stay unchanged. */
+    /** Replaces the filter snapshot after /mp reload. Queue capacity stays fixed; batch/flush take the next snapshot. */
     public void updateConfig(MikuConfig next) {
         if (next != null) {
             this.config = next;
@@ -371,6 +374,6 @@ public final class RecordingService {
     }
 
     public int capacity() {
-        return config.queueCapacity;
+        return queueCapacity;
     }
 }

@@ -32,14 +32,19 @@ import org.bukkit.World;
 public final class WorldEditIntegration {
 
     private final MikuProtectPlugin plugin;
+    private boolean registered;
 
     public WorldEditIntegration(MikuProtectPlugin plugin) {
         this.plugin = plugin;
     }
 
-    public void register() {
+    public synchronized void register() {
+        if (registered) {
+            return;
+        }
         allowFaweExtent();
         WorldEdit.getInstance().getEventBus().register(this);
+        registered = true;
     }
 
     /**
@@ -69,7 +74,8 @@ public final class WorldEditIntegration {
         }
     }
 
-    public void unregister() {
+    public synchronized void unregister() {
+        registered = false;
         try {
             WorldEdit.getInstance().getEventBus().unregister(this);
         } catch (RuntimeException ignored) {

@@ -63,7 +63,6 @@ public final class IdRegistry {
 
         private final Map<String, Long> nameToId = new ConcurrentHashMap<>();
         private final Map<String, Long> lowerToId = new ConcurrentHashMap<>();
-        private final Map<Long, String> idToName = new ConcurrentHashMap<>();
         private final Set<String> pending = ConcurrentHashMap.newKeySet();
         private final AtomicLong sequence = new AtomicLong();
 
@@ -77,11 +76,6 @@ public final class IdRegistry {
             return name == null ? null : lowerToId.get(name.toLowerCase(java.util.Locale.ROOT));
         }
 
-        /** 查 id 对应的名字，未见过返回 null。 */
-        public String name(long id) {
-            return idToName.get(id);
-        }
-
         /** 取已有 id，没有则分配一个新的并标记为待落库。 */
         public long assign(String name) {
             if (name == null) {
@@ -91,13 +85,19 @@ public final class IdRegistry {
             if (cached != null) {
                 return cached;
             }
+            String lower = name.toLowerCase(java.util.Locale.ROOT);
+            Long existing = lowerToId.get(lower);
+            if (existing != null) {
+                // Player names are case-insensitive; a case change must not create a second UUID row.
+                nameToId.putIfAbsent(name, existing);
+                return existing;
+            }
             long id = nameToId.computeIfAbsent(name, key -> {
                 long assigned = sequence.incrementAndGet();
-                idToName.put(assigned, key);
                 pending.add(key);
                 return assigned;
             });
-            lowerToId.putIfAbsent(name.toLowerCase(java.util.Locale.ROOT), id);
+            lowerToId.putIfAbsent(lower, id);
             return id;
         }
 
@@ -108,7 +108,6 @@ public final class IdRegistry {
             }
             nameToId.put(name, id);
             lowerToId.putIfAbsent(name.toLowerCase(java.util.Locale.ROOT), id);
-            idToName.put(id, name);
             sequence.accumulateAndGet(id, Math::max);
         }
 

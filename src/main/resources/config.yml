@@ -1,5 +1,5 @@
 # MikuProtect 配置文件
-# 修改后执行 /mp reload 生效；performance.profile、queue/batch/flush、DuckDB 线程/内存和存储类型变更需要重启。
+# 修改后执行 /mp reload 生效；performance.profile、queue-capacity、DuckDB 线程/内存和存储类型变更需要重启。batch/flush 会在 reload 后按新值运行。
 
 performance:
   # auto: 按服务端 max-players 选择 small(<=20) / medium(<=100) / large(>100)

@@ -330,11 +330,12 @@ public final class CommandService {
 
         for (String token : QueryParser.tokenize(args)) {
             if (token.startsWith("#")) {
-                world = token.substring(1).trim();
-                if (world.isEmpty()) {
+                String name = token.substring(1).trim();
+                if (name.isEmpty()) {
                     send(sender, "&c世界名不可为空，例如 #world_nether");
                     return;
                 }
+                world = name.equalsIgnoreCase("global") ? null : name;
                 continue;
             }
             int colon = token.indexOf(':');
@@ -536,8 +537,6 @@ public final class CommandService {
                         + " &7| &f每页 " + config.pageSize + " &7| &f最大半径 " + config.maxRadius
                         + " &7| &f回滚上限 " + config.rollbackMaxRows);
             }
-        } catch (IllegalStateException exception) {
-            send(sender, "&c重载失败: " + message(exception));
         } catch (RuntimeException exception) {
             send(sender, "&c重载失败: " + message(exception));
         }

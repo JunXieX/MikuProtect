@@ -71,7 +71,7 @@ public final class TileEntityCodec {
                 out.writeByte(FORMAT_VERSION);
                 if (state instanceof Container container) {
                     out.writeByte(TYPE_CONTAINER);
-                    writeInventory(out, container.getInventory().getContents());
+                    writeInventory(out, container.getSnapshotInventory().getContents());
                     if (state instanceof Furnace furnace) {
                         out.writeShort(furnace.getBurnTime());
                         out.writeShort(furnace.getCookTime());
@@ -88,7 +88,7 @@ public final class TileEntityCodec {
                     out.writeBoolean(sign.isWaxed());
                 } else if (state instanceof Lectern lectern) {
                     out.writeByte(TYPE_LECTERN);
-                    writeInventory(out, lectern.getInventory().getContents());
+                    writeInventory(out, lectern.getSnapshotInventory().getContents());
                     out.writeInt(lectern.getPage());
                 } else if (state instanceof CreatureSpawner spawner) {
                     out.writeByte(TYPE_SPAWNER);
@@ -180,7 +180,15 @@ public final class TileEntityCodec {
                 case TYPE_CONTAINER -> {
                     if (state instanceof Container container) {
                         ItemStack[] contents = readInventory(in);
-                        container.getInventory().setContents(contents);
+                        // A double chest's live inventory can be larger than a single-block
+                        // snapshot. Copy slot-by-slot so a shorter payload never clears the tail;
+                        // a too-long payload cannot be applied faithfully.
+                        ItemStack[] current = container.getInventory().getContents();
+                        if (contents.length > current.length) {
+                            return false;
+                        }
+                        System.arraycopy(contents, 0, current, 0, contents.length);
+                        container.getInventory().setContents(current);
                         if (state instanceof Furnace furnace) {
                             furnace.setBurnTime(readShortSafely(in, furnace.getBurnTime()));
                             furnace.setCookTime(readShortSafely(in, furnace.getCookTime()));
@@ -201,7 +209,13 @@ public final class TileEntityCodec {
                 }
                 case TYPE_LECTERN -> {
                     if (state instanceof Lectern lectern) {
-                        lectern.getInventory().setContents(readInventory(in));
+                        ItemStack[] contents = readInventory(in);
+                        ItemStack[] current = lectern.getInventory().getContents();
+                        if (contents.length > current.length) {
+                            return false;
+                        }
+                        System.arraycopy(contents, 0, current, 0, contents.length);
+                        lectern.getInventory().setContents(current);
                         lectern.setPage(readIntSafely(in, lectern.getPage()));
                     }
                 }
@@ -226,10 +240,11 @@ public final class TileEntityCodec {
                 }
                 case TYPE_BANNER -> {
                     if (state instanceof Banner banner) {
+                        String baseColor = readStringSafely(in, banner.getBaseColor().name());
                         try {
-                            banner.setBaseColor(DyeColor.valueOf(readStringSafely(in, banner.getBaseColor().name())));
+                            banner.setBaseColor(DyeColor.valueOf(baseColor));
                         } catch (IllegalArgumentException ignored) {
-                            readStringSafely(in, "");
+                            // The value was already consumed above; never consume a second field.
                         }
                         int count = Math.min(1024, Math.max(0, readIntSafely(in, 0)));
                         List<Pattern> patterns = new ArrayList<>(count);
@@ -276,11 +291,16 @@ public final class TileEntityCodec {
                 }
                 case TYPE_BEACON -> {
                     if (state instanceof Beacon beacon) {
-                        int tier = readIntSafely(in, beacon.getTier());
-                        readStringSafely(in, "");
-                        readStringSafely(in, "");
-                        if (tier >= 0 && tier <= 4) {
-                            // Tier is derived from the pyramid; only store it for diagnostics.
+                        readIntSafely(in, beacon.getTier());
+                        String primary = readStringSafely(in, "");
+                        String secondary = readStringSafely(in, "");
+                        org.bukkit.potion.PotionEffectType primaryType = effect(primary);
+                        if (primaryType != null) {
+                            beacon.setPrimaryEffect(primaryType);
+                        }
+                        org.bukkit.potion.PotionEffectType secondaryType = effect(secondary);
+                        if (secondaryType != null) {
+                            beacon.setSecondaryEffect(secondaryType);
                         }
                     }
                 }
@@ -294,15 +314,20 @@ public final class TileEntityCodec {
                     if (state instanceof Structure structure) {
                         structure.setStructureName(readStringSafely(in, structure.getStructureName()));
                         structure.setAuthor(readStringSafely(in, structure.getAuthor()));
-                        readStringSafely(in, "");
-                        readIntSafely(in, 0);
-                        readIntSafely(in, 0);
-                        readIntSafely(in, 0);
-                        readIntSafely(in, 0);
-                        readIntSafely(in, 0);
-                        readIntSafely(in, 0);
-                        readFloatSafely(in, structure.getIntegrity());
-                        readLongSafely(in, structure.getSeed());
+                        String usageMode = readStringSafely(in, "");
+                        if (!usageMode.isEmpty()) {
+                            try {
+                                structure.setUsageMode(org.bukkit.block.structure.UsageMode.valueOf(usageMode));
+                            } catch (IllegalArgumentException ignored) {
+                                // keep current mode
+                            }
+                        }
+                        structure.setRelativePosition(new org.bukkit.util.BlockVector(
+                                readIntSafely(in, 0), readIntSafely(in, 0), readIntSafely(in, 0)));
+                        structure.setStructureSize(new org.bukkit.util.BlockVector(
+                                readIntSafely(in, 0), readIntSafely(in, 0), readIntSafely(in, 0)));
+                        structure.setIntegrity(readFloatSafely(in, structure.getIntegrity()));
+                        structure.setSeed(readLongSafely(in, structure.getSeed()));
                         structure.setMetadata(readStringSafely(in, structure.getMetadata()));
                     }
                 }
@@ -328,6 +353,14 @@ public final class TileEntityCodec {
         } catch (IOException | RuntimeException exception) {
             return false;
         }
+    }
+
+    private static org.bukkit.potion.PotionEffectType effect(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        org.bukkit.NamespacedKey namespaced = org.bukkit.NamespacedKey.fromString(key);
+        return namespaced == null ? null : org.bukkit.Registry.EFFECT.get(namespaced);
     }
 
     private static void writeInventory(DataOutputStream out, ItemStack[] contents) throws IOException {

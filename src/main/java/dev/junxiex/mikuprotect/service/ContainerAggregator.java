@@ -5,6 +5,7 @@ import dev.junxiex.mikuprotect.model.ActivityRecord;
 import dev.junxiex.mikuprotect.model.ContainerChange;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -60,17 +61,20 @@ final class ContainerAggregator {
 
     void flush(Consumer<ActivityRecord> sink, boolean all) {
         long now = System.currentTimeMillis();
-        for (Map.Entry<Key, Entry> entry : pending.entrySet()) {
-            Entry value = entry.getValue();
-            if (value == null) {
-                continue;
-            }
-            if (!all && now - value.createdAt < windowMs) {
-                continue;
-            }
-            if (pending.remove(entry.getKey(), value)) {
-                sink.accept(value.template.withContainers(new ArrayList<>(value.changes.values())));
-            }
+        List<Entry> ready = new ArrayList<>();
+        for (Key key : pending.keySet()) {
+            // computeIfPresent is the serialization point with offer() on this key. Remove before
+            // reading changes; a later offer creates a fresh Entry instead of mutating this one.
+            pending.computeIfPresent(key, (ignored, value) -> {
+                if (!all && now - value.createdAt < windowMs) {
+                    return value;
+                }
+                ready.add(value);
+                return null;
+            });
+        }
+        for (Entry value : ready) {
+            sink.accept(value.template.withContainers(new ArrayList<>(value.changes.values())));
         }
     }
 

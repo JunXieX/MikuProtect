@@ -24,6 +24,8 @@ import java.util.concurrent.Executors;
  */
 public final class WebService {
 
+    private static final long MAX_LOOKBACK_MS = 365L * 24L * 60L * 60L * 1000L;
+
     private final MikuProtectPlugin plugin;
     private final MikuConfig config;
     private final RateLimiter rateLimiter;
@@ -79,6 +81,16 @@ public final class WebService {
 
     private void handle(HttpExchange exchange, Handler handler) throws IOException {
         try {
+            // Count unauthenticated probes and bad methods too: otherwise a static key can be
+            // brute-forced without any rate limit, and virtual threads absorb unbounded work.
+            String remote = exchange.getRemoteAddress() == null
+                    || exchange.getRemoteAddress().getAddress() == null ? "unknown"
+                    : exchange.getRemoteAddress().getAddress().getHostAddress();
+            if (!rateLimiter.allow(remote)) {
+                exchange.getResponseHeaders().set("Retry-After", "60");
+                send(exchange, 429, "{\"error\":\"rate limited\"}");
+                return;
+            }
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 send(exchange, 405, "{\"error\":\"method not allowed\"}");
                 return;
@@ -86,14 +98,6 @@ public final class WebService {
             String authorization = exchange.getRequestHeaders().getFirst("Authorization");
             if (authorization == null || !authorization.equals("Bearer " + config.webApiKey)) {
                 send(exchange, 401, "{\"error\":\"unauthorized\"}");
-                return;
-            }
-            String remote = exchange.getRemoteAddress() == null
-                    || exchange.getRemoteAddress().getAddress() == null ? "unknown"
-                    : exchange.getRemoteAddress().getAddress().getHostAddress();
-            if (!rateLimiter.allow(remote)) {
-                exchange.getResponseHeaders().set("Retry-After", "60");
-                send(exchange, 429, "{\"error\":\"rate limited\"}");
                 return;
             }
             send(exchange, 200, handler.run(exchange));
@@ -116,13 +120,23 @@ public final class WebService {
         Map<String, String> params = query(exchange.getRequestURI().getRawQuery());
         int requested = parse(params.get("limit"), 20);
         int limit = requested < 1 ? 20 : Math.min(config.webMaxResults, requested);
+        int page = Math.min(LookupQuery.MAX_PAGE, Math.max(1, parse(params.get("page"), 1)));
+        long now = System.currentTimeMillis();
+        long since = parseLong(params.get("since"), 0L);
+        long floor = now - MAX_LOOKBACK_MS;
+        if (since <= 0L) {
+            since = Math.max(floor, now - config.defaultSince);
+        } else if (since < floor) {
+            // An explicit since is honored up to the hard window; only malformed values fall back.
+            since = floor;
+        }
         LookupQuery query = LookupQuery.all()
                 .world(params.get("world"))
                 .user(params.get("user"))
                 .material(params.get("material"))
                 .limit(limit)
-                .page(Math.max(1, parse(params.get("page"), 1)))
-                .since(parseLong(params.get("since"), 0L));
+                .page(page)
+                .since(since);
         List<StoredActivity> rows = plugin.lookup().lookup(query).get(10, java.util.concurrent.TimeUnit.SECONDS);
         StringBuilder json = new StringBuilder(rows.size() * 160 + 2);
         json.append('[');

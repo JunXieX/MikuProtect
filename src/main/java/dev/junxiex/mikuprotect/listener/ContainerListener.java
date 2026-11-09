@@ -196,7 +196,8 @@ public final class ContainerListener implements Listener {
     }
 
     private static Inventory containerAt(Location location) {
-        BlockState state = location.getBlock().getState();
+        // A live state avoids copying the whole inventory just to read the current slots.
+        BlockState state = location.getBlock().getState(false);
         return state instanceof InventoryHolder holder ? holder.getInventory() : null;
     }
 

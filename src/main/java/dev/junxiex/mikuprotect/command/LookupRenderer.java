@@ -116,7 +116,10 @@ public final class LookupRenderer {
             return "-> " + activity.targetUser();
         }
         if (notBlank(activity.message())) {
-            return "\"" + TextUtil.truncate(activity.message().replace('\n', ' '), SUBJECT_LIMIT) + "\"";
+            // Chat text is rendered through the legacy & serializer; a raw & would let a player
+            // spoof the rolled-back marker or other status colors in the lookup line.
+            String text = activity.message().replace('&', '\uFF06').replace('\n', ' ');
+            return "\"" + TextUtil.truncate(text, SUBJECT_LIMIT) + "\"";
         }
         if (notBlank(activity.blockData())) {
             return TextUtil.truncate(activity.blockData(), SUBJECT_LIMIT);
