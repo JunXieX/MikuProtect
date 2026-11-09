@@ -11,8 +11,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Container;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.TNTPrimed;
+import org.bukkit.entity.Zombie;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -59,20 +62,46 @@ public final class BenchProbe extends JavaPlugin {
     }
 
     private void prepare(World world) {
-        for (int cx = -1; cx <= 2; cx++) {
-            for (int cz = -1; cz <= 2; cz++) {
+        for (int cx = -1; cx <= 4; cx++) {
+            for (int cz = -1; cz <= 3; cz++) {
                 world.setChunkForceLoaded(cx, cz, true);
                 world.getChunkAt(cx, cz, true);
             }
         }
         world.getEntitiesByClass(TNTPrimed.class).forEach(TNTPrimed::remove);
         // Three solid layers keep the TNT explosion inside a deterministic block budget.
-        for (int x = -8; x < 40; x++) {
+        for (int x = -8; x < 64; x++) {
             for (int z = -8; z < 40; z++) {
                 for (int y = -63; y <= -61; y++) {
                     world.getBlockAt(x, y, z).setType(Material.STONE, false);
                 }
             }
+        }
+        for (int i = 0; i < 200; i++) {
+            int x = 40 + (i % 20);
+            int z = -8 + (i / 20);
+            world.getBlockAt(x, -61, z).setType(Material.CHEST, false);
+            world.getBlockAt(x, -60, z).setType(Material.HOPPER, false);
+            if (world.getBlockAt(x, -60, z).getState() instanceof Container container) {
+                container.getInventory().setItem(0, new ItemStack(Material.DIRT, 64));
+                container.update(true, false);
+            }
+        }
+    }
+
+    private static void spawnZombies(World world) {
+        for (int i = 0; i < 200; i++) {
+            int x = -8 + (i % 20);
+            int z = 20 + (i / 20);
+            Zombie zombie = world.spawn(new Location(world, x + 0.5, -60.0, z + 0.5), Zombie.class);
+            zombie.setAI(false);
+            zombie.setShouldBurnInDay(false);
+        }
+    }
+
+    private static void killZombies(World world) {
+        for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+            zombie.damage(1000.0);
         }
     }
 
@@ -84,7 +113,11 @@ public final class BenchProbe extends JavaPlugin {
         if (state.measuredTicks == 0) {
             // Let platform lighting/tile updates settle before the measured burst.
             spawnTnt(world, state.tntCount);
+            spawnZombies(world);
             state.lastTickNanos = System.nanoTime();
+        }
+        if (state.measuredTicks == state.durationTicks / 2) {
+            killZombies(world);
         }
         long now = System.nanoTime();
         if (state.lastTickNanos != 0L) {
@@ -138,7 +171,8 @@ public final class BenchProbe extends JavaPlugin {
                 + " server_tick_max_ms=" + format(state.serverTickMax)
                 + " tps_avg=" + format(tpsAvg)
                 + " tps_min=" + format(state.tpsMin)
-                + " tnt_left=" + entities);
+                + " tnt_left=" + entities
+                + " hoppers=200 zombies=200");
         getLogger().info("BENCH_DONE");
     }
 

@@ -47,9 +47,24 @@ def log_text(log: Path) -> str:
         return ""
 
 
-def wait_for(log: Path, marker: str, timeout: float) -> bool:
+def read_rss_kb(pid: int) -> int:
+    if not sys.platform.startswith("linux"):
+        return 0
+    try:
+        for line in Path(f"/proc/{pid}/status").read_text(encoding="utf-8").splitlines():
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1])
+    except (FileNotFoundError, ProcessLookupError, ValueError, OSError):
+        pass
+    return 0
+
+
+def wait_for(log: Path, marker: str, timeout: float, process: subprocess.Popen | None = None,
+             rss_state: dict | None = None) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if process is not None and rss_state is not None:
+            rss_state["max_kb"] = max(rss_state.get("max_kb", 0), read_rss_kb(process.pid))
         if marker in log_text(log):
             return True
         time.sleep(0.25)
@@ -153,6 +168,7 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
         "--nogui",
     ]
     started = time.monotonic()
+    rss_state = {"max_kb": 0}
     with log.open("w", encoding="utf-8", errors="replace") as output:
         process = subprocess.Popen(
             command,
@@ -165,16 +181,19 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
         )
         result: dict = {"variant": variant, "run": run_number, "status": "failed"}
         try:
-            if not wait_for(log, READY_MARKER, args.startup_timeout):
+            if not wait_for(log, READY_MARKER, args.startup_timeout, process, rss_state):
                 result["error"] = "server did not become ready"
+                result["startup_seconds"] = round(time.monotonic() - started, 3)
+                result["max_rss_mb"] = round(rss_state["max_kb"] / 1024, 2)
                 result["log_tail"] = "\n".join(log_text(log).splitlines()[-40:])
                 return result
+            result["startup_seconds"] = round(time.monotonic() - started, 3)
             if process.stdin is None:
                 result["error"] = "server stdin unavailable"
                 return result
             process.stdin.write(f"benchprobe {args.tnt} {args.ticks}\n")
             process.stdin.flush()
-            done = wait_for(log, DONE_MARKER, args.run_timeout)
+            done = wait_for(log, DONE_MARKER, args.run_timeout, process, rss_state)
             text = log_text(log)
             result_lines = [line for line in text.splitlines() if "[BENCH_RESULT]" in line]
             if not result_lines:
@@ -184,6 +203,7 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
             result.update(parse_result(result_lines[-1]))
             result["status"] = "ok" if done else "result_without_done"
             result["storage_bytes"] = storage_bytes(server_dir)
+            result["max_rss_mb"] = round(rss_state["max_kb"] / 1024, 2)
             result["duration_seconds"] = round(time.monotonic() - started, 3)
             errors = [
                 line for line in text.splitlines()
@@ -222,10 +242,10 @@ def markdown_report(variants: list[dict], raw: dict) -> str:
     lines = [
         "# MikuProtect performance comparison",
         "",
-        "Same Paper/JVM, flat world, no players, fixed TNT burst. Values are medians of the runs.",
+        "Same Paper/JVM, flat world, no network players; fixed TNT burst + 200 hoppers + 200 zombies. Values are medians of the runs.",
         "",
-        "| Variant | Status | Avg tick interval ms | P95 ms | Max ms | Server avg tick ms | TPS avg | Storage MiB | Δ vs baseline |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Variant | Status | Avg tick interval ms | P95 ms | Max ms | Server avg tick ms | TPS avg | Startup s | Max RSS MiB | Storage MiB | Δ vs baseline |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for variant in variants:
         runs = variant["runs"]
@@ -238,7 +258,9 @@ def markdown_report(variants: list[dict], raw: dict) -> str:
             f"{median_value(runs, 'interval_p95_ms'):.3f} | "
             f"{median_value(runs, 'interval_max_ms'):.3f} | "
             f"{median_value(runs, 'server_tick_avg_ms'):.3f} | "
-            f"{median_value(runs, 'tps_avg'):.3f} | {storage:.2f} | {delta} |"
+            f"{median_value(runs, 'tps_avg'):.3f} | "
+            f"{median_value(runs, 'startup_seconds'):.3f} | "
+            f"{median_value(runs, 'max_rss_mb'):.1f} | {storage:.2f} | {delta} |"
         )
     lines.extend([
         "",

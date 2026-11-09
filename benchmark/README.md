@@ -6,8 +6,8 @@ CI performance harness for **MikuProtect vs CoreProtect Community Edition vs Pri
 
 `BenchProbe` generates the same deterministic workload for every variant:
 
-1. Creates a 48×48×3 stone platform in a fresh flat world.
-2. Spawns a fixed number of TNT entities in one tick (default 500).
+1. Creates a 48×48×3 stone platform, 200 hopper/chest pairs with items, and a zombie group in a fresh flat world.
+2. Spawns a fixed number of TNT entities in one tick and kills the zombie group halfway through the measured window.
 3. Measures 200 ticks after the burst:
    - measured task interval (avg/p50/p95/max),
    - Paper `getAverageTickTime()`,
