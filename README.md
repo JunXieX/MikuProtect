@@ -30,7 +30,7 @@ MikuProtect 是纯 Paper 插件（paper-plugin.yml、Brigadier、Adventure、Pap
 
 ## 安装
 
-1. 将 `MikuProtect-1.2.1.jar` 放入服务端 `plugins/`。
+1. 将 `MikuProtect-1.2.2.jar` 放入服务端 `plugins/`。
 2. 启动服务器，首次会生成 `plugins/MikuProtect/config.yml` 与 `plugins/MikuProtect/data/`；loader 会联网下载 DuckDB/MariaDB/HikariCP，首次启动需要可访问 Maven Central 镜像。
 3. 默认使用 DuckDB，无需额外安装数据库。
 4. 如需 MariaDB，先创建数据库（例如 `CREATE DATABASE mikuprotect`），再修改 `storage.type: mariadb` 并填写连接信息，重启服务器。

@@ -688,12 +688,8 @@ public final class CommandService {
      * global region when the callback is off the server thread.
      */
     private void deliver(CommandSender sender, Component message) {
-        Runnable task = () -> {
-            sender.sendMessage(message);
-            if (!(sender instanceof Player)) {
-                plugin.getLogger().info(TextUtil.plain(message));
-            }
-        };
+        // ConsoleCommandSender already writes to the server log; logging again doubles every line.
+        Runnable task = () -> sender.sendMessage(message);
         if (plugin.getServer().isPrimaryThread()) {
             task.run();
         } else {
