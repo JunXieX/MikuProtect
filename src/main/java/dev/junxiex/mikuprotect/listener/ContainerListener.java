@@ -1,8 +1,7 @@
 package dev.junxiex.mikuprotect.listener;
 
 import dev.junxiex.mikuprotect.model.ActionType;
-import dev.junxiex.mikuprotect.model.ActivityRecord;
-import dev.junxiex.mikuprotect.model.ContainerChange;
+import dev.junxiex.mikuprotect.model.ContainerDraft;
 import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.util.ItemCodec;
 import dev.junxiex.mikuprotect.util.Scheduler;
@@ -151,7 +150,7 @@ public final class ContainerListener implements Listener {
             return;
         }
         int size = inventory.getSize();
-        List<ContainerChange> changes = new ArrayList<>(before.size());
+        List<ContainerDraft> changes = new ArrayList<>(before.size());
         int delta = 0;
         for (Snapshot snapshot : before) {
             int slot = snapshot.slot();
@@ -165,7 +164,7 @@ public final class ContainerListener implements Listener {
             if (sameItem(beforeItem, after) && beforeAmount == afterAmount) {
                 continue;
             }
-            changes.add(new ContainerChange(slot, ItemCodec.encode(beforeItem), ItemCodec.encode(after),
+            changes.add(new ContainerDraft(slot, beforeItem, after == null ? null : after.clone(),
                     beforeAmount, afterAmount));
             delta += afterAmount - beforeAmount;
         }
@@ -173,7 +172,7 @@ public final class ContainerListener implements Listener {
             return;
         }
         ActionType action = delta < 0 ? ActionType.CONTAINER_REMOVE : ActionType.CONTAINER_ADD;
-        recording.record(ActivityRecord.container(location, action, player, changes));
+        recording.recordDeferredContainer(location, action, player, changes);
     }
 
     private static List<Snapshot> snapshot(Inventory inventory) {

@@ -8,7 +8,6 @@ import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.storage.Storage;
 import dev.junxiex.mikuprotect.util.ItemCodec;
 import dev.junxiex.mikuprotect.util.Scheduler;
-import dev.junxiex.mikuprotect.util.TileEntityCodec;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import java.util.List;
 import net.kyori.adventure.text.Component;
@@ -136,10 +135,10 @@ public final class PlayerListener implements Listener {
         String oldLines = join(front, back);
         String newLines = side == Side.BACK ? join(front, edited) : join(edited, back);
         // 旧 tile 数据来自现场告示牌，新 tile 数据由旧快照改写被编辑的一面得到
-        byte[] oldMeta = TileEntityCodec.encode(state);
-        byte[] newMeta = TileEntityCodec.encode(withLines(state, side, edited));
-        recording.record(ActivityRecord.sign(block.getLocation(), event.getPlayer(), oldLines, newLines,
-                oldMeta, newMeta));
+        BlockState newState = withLines(state, side, edited);
+        ActivityRecord skeleton = ActivityRecord.sign(block.getLocation(), event.getPlayer(), oldLines, newLines,
+                null, null);
+        recording.recordDeferredSign(skeleton, newState, state);
     }
 
     private static BlockState withLines(BlockState state, Side side, List<Component> lines) {

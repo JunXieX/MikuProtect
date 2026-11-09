@@ -9,3 +9,9 @@ logs/
 # 开发文档只保存在本地，不进入仓库
 docs/
 dev-docs/
+
+# 本地性能压测输出
+benchmark-results/
+benchmark-results-*/
+benchmark/cache/
+__pycache__/

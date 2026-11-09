@@ -6,7 +6,6 @@ import dev.junxiex.mikuprotect.service.AlertService;
 import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.util.BlockCodec;
 import dev.junxiex.mikuprotect.util.Scheduler;
-import dev.junxiex.mikuprotect.util.TileEntityCodec;
 import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.ExplosionResult;
@@ -70,7 +69,7 @@ public final class BlockListener implements Listener {
         // 事件阶段方块还在，直接取旧状态与旧 tile 数据
         BlockState state = block.getState();
         push(block.getLocation(), ActionType.BLOCK_BREAK, event.getPlayer(), AIR, state.getBlockData(),
-                null, TileEntityCodec.encode(state));
+                null, state);
         if (alerts != null) {
             alerts.blockBreak(event.getPlayer(), block.getLocation(), state.getType());
         }
@@ -83,7 +82,6 @@ public final class BlockListener implements Listener {
         Material placed = block.getType();
         BlockState replaced = event.getBlockReplacedState();
         BlockData before = replaced != null ? replaced.getBlockData() : null;
-        byte[] oldMeta = replaced != null ? TileEntityCodec.encode(replaced) : null;
         Player player = event.getPlayer();
         // 箱子/告示牌等新 tile 实体在事件之后才创建，延后一拍再取新状态
         Scheduler.at(location, () -> {
@@ -93,7 +91,7 @@ public final class BlockListener implements Listener {
             }
             BlockState state = current.getState();
             push(location, ActionType.BLOCK_PLACE, player, state.getBlockData(), before,
-                    TileEntityCodec.encode(state), oldMeta);
+                    state, replaced);
         });
     }
 
@@ -104,7 +102,7 @@ public final class BlockListener implements Listener {
         Block block = event.getBlock();
         BlockState state = block.getState();
         push(block.getLocation(), ActionType.BLOCK_BURN, null, AIR, state.getBlockData(),
-                null, TileEntityCodec.encode(state));
+                null, state);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -114,7 +112,7 @@ public final class BlockListener implements Listener {
         BlockState newState = event.getNewState();
         push(block.getLocation(), ActionType.BLOCK_FADE, null,
                 newState != null ? newState.getBlockData() : AIR, oldState.getBlockData(),
-                newState != null ? TileEntityCodec.encode(newState) : null, TileEntityCodec.encode(oldState));
+                newState, oldState);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -124,7 +122,7 @@ public final class BlockListener implements Listener {
         BlockState newState = event.getNewState();
         push(block.getLocation(), ActionType.BLOCK_FORM, null,
                 newState != null ? newState.getBlockData() : null, oldState.getBlockData(),
-                newState != null ? TileEntityCodec.encode(newState) : null, TileEntityCodec.encode(oldState));
+                newState, oldState);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -134,7 +132,7 @@ public final class BlockListener implements Listener {
         BlockState newState = event.getNewState();
         push(block.getLocation(), ActionType.BLOCK_SPREAD, null,
                 newState != null ? newState.getBlockData() : null, oldState.getBlockData(),
-                newState != null ? TileEntityCodec.encode(newState) : null, TileEntityCodec.encode(oldState));
+                newState, oldState);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -142,7 +140,7 @@ public final class BlockListener implements Listener {
         Block block = event.getBlock();
         BlockState state = block.getState();
         push(block.getLocation(), ActionType.BLOCK_IGNITE, event.getPlayer(), FIRE, state.getBlockData(),
-                null, TileEntityCodec.encode(state));
+                null, state);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -153,7 +151,7 @@ public final class BlockListener implements Listener {
             return;
         }
         BlockState state = block.getState();
-        push(location, ActionType.BLOCK_DECAY, null, AIR, state.getBlockData(), null, TileEntityCodec.encode(state));
+        push(location, ActionType.BLOCK_DECAY, null, AIR, state.getBlockData(), null, state);
     }
 
     // ---------------------------------------------------------------- 活塞
@@ -184,11 +182,11 @@ public final class BlockListener implements Listener {
             Location source = block.getLocation();
             Location destination = block.getRelative(direction).getLocation();
             // 潜影盒一类容器被推动时，tile 数据跟着方块走，目标位置要带上它
-            byte[] dataMeta = TileEntityCodec.encode(block.getState());
+            BlockState dataMeta = block.getState();
             if (owned(destination)) {
                 Block destinationBlock = destination.getBlock();
                 push(destination, action, null, data, destinationBlock.getBlockData(),
-                        dataMeta, TileEntityCodec.encode(destinationBlock.getState()));
+                        dataMeta, destinationBlock.getState());
             }
             if (owned(source)) {
                 push(source, action, null, AIR, data, null, dataMeta);
@@ -207,7 +205,7 @@ public final class BlockListener implements Listener {
         Block block = event.getBlock();
         BlockState state = block.getState();
         push(block.getLocation(), ActionType.BLOCK_BUCKET_EMPTY, event.getPlayer(), now, state.getBlockData(),
-                null, TileEntityCodec.encode(state));
+                null, state);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -215,7 +213,7 @@ public final class BlockListener implements Listener {
         Block block = event.getBlock();
         BlockState state = block.getState();
         push(block.getLocation(), ActionType.BLOCK_BUCKET_FILL, event.getPlayer(), AIR, state.getBlockData(),
-                null, TileEntityCodec.encode(state));
+                null, state);
     }
 
     /** 倒出的液体类型；鱼桶一类倒出的都是水。 */
@@ -268,7 +266,7 @@ public final class BlockListener implements Listener {
             }
             BlockState state = block.getState();
             push(location, ActionType.BLOCK_EXPLOSION, null, AIR, state.getBlockData(),
-                    null, TileEntityCodec.encode(state));
+                    null, state);
         }
     }
 
@@ -286,7 +284,7 @@ public final class BlockListener implements Listener {
         Entity entity = event.getEntity();
         Player player = entity instanceof Player ? (Player) entity : null;
         push(location, ActionType.BLOCK_ENTITY_CHANGE, player, now != null ? now : AIR, state.getBlockData(),
-                null, TileEntityCodec.encode(state));
+                null, state);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -327,24 +325,25 @@ public final class BlockListener implements Listener {
             }
             BlockState oldState = location.getBlock().getState();
             push(location, action, player, state.getBlockData(), oldState.getBlockData(),
-                    TileEntityCodec.encode(state), TileEntityCodec.encode(oldState));
+                    state, oldState);
         }
     }
 
     // ---------------------------------------------------------------- 内部
 
     private void push(Location location, ActionType action, Player player, BlockData now, BlockData before,
-            byte[] meta, byte[] oldMeta) {
+            BlockState metaState, BlockState oldMetaState) {
         if (location == null || location.getWorld() == null || action == null || (now == null && before == null)) {
             return;
         }
         // 破坏/爆炸后 now 是空气，材质应取变更前的方块，否则按材质查询会全部落到 air
         BlockData materialData = now != null && now.getMaterial() != Material.AIR ? now : before;
-        recording.record(ActivityRecord.block(location, action,
+        ActivityRecord skeleton = ActivityRecord.block(location, action,
                 player != null ? player.getName() : null,
                 player != null ? player.getUniqueId() : null,
                 BlockCodec.materialKey(materialData), BlockCodec.encode(now), BlockCodec.encode(before),
-                meta, oldMeta));
+                null, null);
+        recording.recordDeferredBlock(skeleton, metaState, oldMetaState);
     }
 
     /** 当前线程是否拥有该位置所在的区域；Paper 上恒为 true。 */

@@ -1,5 +1,13 @@
 # MikuProtect 配置文件
-# 修改后执行 /mp reload 生效；storage.type 变更需要重启。
+# 修改后执行 /mp reload 生效；performance.profile、queue/batch/flush、DuckDB 线程/内存和存储类型变更需要重启。
+
+performance:
+  # auto: 按服务端 max-players 选择 small(<=20) / medium(<=100) / large(>100)
+  # small / medium / large: 固定使用对应档位
+  # manual: 使用下面 recording/storage/rollback 的数字，适合已经调过参的服务器
+  # 选择 auto 或固定档位时，会覆盖对应的 queue/batch/flush/threads/memory 等数值。
+  # 旧配置没有本段时按 manual 处理，避免升级后改变已有行为。
+  profile: auto
 
 storage:
   # duckdb 或 mariadb

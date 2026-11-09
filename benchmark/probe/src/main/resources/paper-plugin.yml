@@ -1,0 +1,6 @@
+name: BenchProbe
+version: '1.0.0'
+main: dev.junxiex.benchprobe.BenchProbe
+api-version: '26.3'
+authors: [ Benchmark ]
+description: 'Deterministic TNT workload probe for CI performance comparisons.'

@@ -99,11 +99,16 @@ public final class ActivityRecord {
 
     public static ActivityRecord container(Location location, ActionType action, Player player,
             List<ContainerChange> changes) {
+        return container(location, action, player != null ? player.getName() : null,
+                player != null ? player.getUniqueId() : null, changes);
+    }
+
+    public static ActivityRecord container(Location location, ActionType action, String user, UUID userUuid,
+            List<ContainerChange> changes) {
         World world = location.getWorld();
         return new ActivityRecord(System.currentTimeMillis(), world.getUID(), world.getName(),
                 location.getBlockX(), location.getBlockY(), location.getBlockZ(), action,
-                player != null ? player.getName() : null, player != null ? player.getUniqueId() : null,
-                null, null, null, null, 0, null, null, null, null, null, null, changes);
+                user, userUuid, null, null, null, null, 0, null, null, null, null, null, null, changes);
     }
 
     public static ActivityRecord entity(Location location, ActionType action, Player player, EntityType type,
@@ -195,6 +200,12 @@ public final class ActivityRecord {
         return new ActivityRecord(time, worldUuid, worldName, x, y, z, action, userName, userUuid, material,
                 blockData, oldBlockData, data, itemAmount, entityType, entityUuid, targetUser, message, meta,
                 oldMeta, containers);
+    }
+
+    public ActivityRecord withMeta(byte[] nextMeta, byte[] nextOldMeta) {
+        return new ActivityRecord(time, worldUuid, worldName, x, y, z, action, userName, userUuid, material,
+                blockData, oldBlockData, itemData, amount, entityType, entityUuid, targetUser, message,
+                nextMeta, nextOldMeta, containers);
     }
 
     public List<ContainerChange> containersOrEmpty() {

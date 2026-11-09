@@ -1,0 +1,86 @@
+name: performance
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Runs per variant (median is reported)'
+        required: false
+        default: '2'
+      tnt:
+        description: 'TNT entities per measured run'
+        required: false
+        default: '500'
+      ticks:
+        description: 'Measured ticks per run'
+        required: false
+        default: '200'
+  schedule:
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: "performance-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Build MikuProtect
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Build benchmark probe
+        run: |
+          cd benchmark/probe
+          ../../gradlew build --no-daemon --stacktrace
+
+      - name: Download Paper and comparison plugins
+        run: |
+          set -euo pipefail
+          mkdir -p benchmark/cache
+          curl -fsSL --retry 3 --retry-delay 2             -o benchmark/cache/paper.jar             https://fill-data.papermc.io/v1/objects/9601f9a26a2a52a0f2c807cf1abf691f96ee4fb287878313b601cebc2c51eabf/paper-26.3-244.jar
+          curl -fsSL --retry 3 --retry-delay 2             -o benchmark/cache/CoreProtect.jar             https://github.com/Midnight-2004/CoreProtect-AutoBuild/releases/download/latest-build/CoreProtect-24.2-dev.jar
+          curl -fsSL --retry 3 --retry-delay 2             -o benchmark/cache/prism.jar             https://cdn.modrinth.com/data/oLV8Vvxy/versions/K6DsX6Ko/prism-paper-v4.5.jar
+          curl -fsSL --retry 3 --retry-delay 2             -o benchmark/cache/nbt-api.jar             https://cdn.modrinth.com/data/nfGCP9fk/versions/h7feK39u/item-nbt-api-plugin-2.16.1.jar
+          echo "9601f9a26a2a52a0f2c807cf1abf691f96ee4fb287878313b601cebc2c51eabf  benchmark/cache/paper.jar" | sha256sum -c -
+          echo "eefa51f1a6b0d09e8f42eee0c5670369090f154581866a0839f5c936524849373f27565cad0e35104014ead87736acd54de9f346d8137c9aff8ca0922e25a090  benchmark/cache/prism.jar" | sha512sum -c -
+          echo "1957deb03d07109b0cbf78a54f1030546e6fb3147c400b28d24ef585f527bb503965f4f777b2bc18b06bc682a164a2ffd42ba0468659b2f4bed6729df3e52be0  benchmark/cache/nbt-api.jar" | sha512sum -c -
+
+      - name: Run comparison
+        env:
+          RUNS: ${{ github.event.inputs.runs || '2' }}
+          TNT: ${{ github.event.inputs.tnt || '500' }}
+          TICKS: ${{ github.event.inputs.ticks || '200' }}
+        run: |
+          set -euo pipefail
+          MIKU_JAR=$(find build/libs -maxdepth 1 -name 'MikuProtect-*.jar' | head -1)
+          python3 benchmark/run.py             --paper benchmark/cache/paper.jar             --probe benchmark/probe/build/libs/BenchProbe.jar             --miku "$MIKU_JAR"             --coreprotect benchmark/cache/CoreProtect.jar             --prism benchmark/cache/prism.jar             --nbtapi benchmark/cache/nbt-api.jar             --out benchmark-results             --runs "$RUNS"             --tnt "$TNT"             --ticks "$TICKS"
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: performance-results
+          path: |
+            benchmark-results/results.json
+            benchmark-results/summary.md
+            benchmark-results/servers/*/benchmark.log
+
+      - name: Write job summary
+        if: always()
+        run: |
+          if [ -f benchmark-results/summary.md ]; then
+            cat benchmark-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi

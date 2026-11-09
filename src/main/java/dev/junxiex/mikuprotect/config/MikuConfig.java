@@ -73,12 +73,24 @@ public final class MikuConfig {
     public final String alertPermission;
 
     public final boolean debug;
+    public final String performanceProfile;
 
     public MikuConfig(FileConfiguration config, Logger logger) {
+        this(config, logger, 0);
+    }
+
+    public MikuConfig(FileConfiguration config, Logger logger, int maxPlayers) {
+        PerformanceProfile profile = PerformanceProfile.resolve(
+                config.getString("performance.profile"), maxPlayers, logger);
+        this.performanceProfile = profile == null ? "manual" : profile.key;
         this.storageType = StorageType.parse(config.getString("storage.type", "duckdb"));
         this.duckdbFile = config.getString("storage.duckdb.file", "data/mikuprotect.duckdb");
-        this.duckdbMemoryLimit = config.getString("storage.duckdb.memory-limit", "512MB");
-        this.duckdbThreads = Math.max(1, config.getInt("storage.duckdb.threads", 3));
+        this.duckdbMemoryLimit = profile == null
+                ? config.getString("storage.duckdb.memory-limit", "512MB")
+                : profile.duckdbMemoryLimit;
+        this.duckdbThreads = Math.max(1, profile == null
+                ? config.getInt("storage.duckdb.threads", 3)
+                : profile.duckdbThreads);
         this.duckdbMaxTempSize = config.getString("storage.duckdb.max-temp-size", "10GB");
 
         this.mariadbHost = config.getString("storage.mariadb.host", "127.0.0.1");
@@ -86,18 +98,29 @@ public final class MikuConfig {
         this.mariadbDatabase = config.getString("storage.mariadb.database", "mikuprotect");
         this.mariadbUsername = config.getString("storage.mariadb.username", "root");
         this.mariadbPassword = config.getString("storage.mariadb.password", "");
-        this.mariadbPoolSize = Math.max(2, config.getInt("storage.mariadb.pool-size", 6));
+        this.mariadbPoolSize = Math.max(2, profile == null
+                ? config.getInt("storage.mariadb.pool-size", 6)
+                : profile.mariadbPoolSize);
 
-        this.queueCapacity = Math.max(512, config.getInt("recording.queue-capacity", 50000));
-        this.batchSize = Math.max(1, config.getInt("recording.batch-size", 1000));
-        this.flushIntervalMs = Math.max(50L, config.getLong("recording.flush-interval-ms", 500L));
+        this.queueCapacity = Math.max(512, profile == null
+                ? config.getInt("recording.queue-capacity", 50000)
+                : profile.queueCapacity);
+        this.batchSize = Math.max(1, profile == null
+                ? config.getInt("recording.batch-size", 1000)
+                : profile.batchSize);
+        this.flushIntervalMs = Math.max(50L, profile == null
+                ? config.getLong("recording.flush-interval-ms", 500L)
+                : profile.flushIntervalMs);
         this.aggregateContainers = config.getBoolean("recording.aggregate-containers", true);
         this.walEnabled = config.getBoolean("recording.wal-enabled", true);
-        this.containerAggregationWindowMs =
-                Math.max(100L, config.getLong("recording.container-aggregation-window-ms", 1000L));
+        this.containerAggregationWindowMs = Math.max(100L, profile == null
+                ? config.getLong("recording.container-aggregation-window-ms", 1000L)
+                : profile.containerAggregationWindowMs);
         this.ignoreCreative = config.getBoolean("recording.ignore-creative", false);
         this.worldEditEnabled = config.getBoolean("recording.log-worldedit", true);
-        this.worldEditMaxBlocks = Math.max(0, config.getInt("recording.worldedit-max-blocks", 100000));
+        this.worldEditMaxBlocks = Math.max(0, profile == null
+                ? config.getInt("recording.worldedit-max-blocks", 100000)
+                : profile.worldEditMaxBlocks);
         this.worlds = Collections.unmodifiableSet(new HashSet<>(config.getStringList("recording.worlds")));
         this.maxMessageLength = Math.max(32, config.getInt("recording.max-message-length", 256));
 
@@ -167,8 +190,12 @@ public final class MikuConfig {
         this.pageSize = Math.max(1, config.getInt("lookup.page-size", 10));
         this.maxPageSize = Math.max(this.pageSize, config.getInt("lookup.max-page-size", 100));
 
-        this.rollbackMaxRows = Math.max(1000, config.getInt("rollback.max-rows", 200000));
-        this.rollbackBudgetMs = Math.max(1L, config.getLong("rollback.budget-ms", 25L));
+        this.rollbackMaxRows = Math.max(1000, profile == null
+                ? config.getInt("rollback.max-rows", 200000)
+                : profile.rollbackMaxRows);
+        this.rollbackBudgetMs = Math.max(1L, profile == null
+                ? config.getLong("rollback.budget-ms", 25L)
+                : profile.rollbackBudgetMs);
         this.rollbackMinBudgetMs = Math.max(1L, config.getLong("rollback.min-budget-ms", 10L));
         this.rollbackMaxBudgetMs = Math.max(this.rollbackMinBudgetMs, config.getLong("rollback.max-budget-ms", 50L));
         this.applyPhysics = config.getBoolean("rollback.apply-physics", false);

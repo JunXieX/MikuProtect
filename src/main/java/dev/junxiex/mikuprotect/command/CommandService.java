@@ -506,6 +506,7 @@ public final class CommandService {
         sendRaw(sender, "&7存储: &f" + (storage == null ? "未就绪" : storage.type().name().toLowerCase(Locale.ROOT))
                 + " &7| &f" + (healthy ? "正常" : "异常")
                 + (records >= 0 ? " &7| 记录 &f" + records : ""));
+        sendRaw(sender, "&7性能档位: &f" + config.performanceProfile);
         int enabledActions = ActionType.values().length - config.disabledActions.size();
         sendRaw(sender, "&7记录动作: &f" + enabledActions + " &7个可用，已禁用 &f" + config.disabledActions.size() + " &7个");
         sendRaw(sender, "&7查询: &f默认半径 " + config.defaultRadius + " &7| &f最大半径 " + config.maxRadius

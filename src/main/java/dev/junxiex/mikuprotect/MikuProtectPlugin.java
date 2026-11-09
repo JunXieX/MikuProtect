@@ -53,7 +53,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
         saveDefaultConfig();
         reloadConfig();
         try {
-            this.config = new MikuConfig(getConfig(), getLogger());
+            this.config = new MikuConfig(getConfig(), getLogger(), getServer().getMaxPlayers());
         } catch (RuntimeException exception) {
             getLogger().severe("Invalid configuration: " + exception.getMessage());
             getServer().getPluginManager().disablePlugin(this);
@@ -97,7 +97,10 @@ public final class MikuProtectPlugin extends JavaPlugin {
 
         scheduleAutoPurge();
 
-        getLogger().info("MikuProtect enabled with " + storage.type() + "; Folia=" + Scheduler.folia());
+        getLogger().info("MikuProtect enabled with " + storage.type() + "; Folia=" + Scheduler.folia()
+                + "; profile=" + config.performanceProfile
+                + " (queue " + config.queueCapacity + ", batch " + config.batchSize
+                + ", flush " + config.flushIntervalMs + "ms)");
     }
 
     @Override
@@ -132,7 +135,7 @@ public final class MikuProtectPlugin extends JavaPlugin {
      */
     public void reload() {
         reloadConfig();
-        MikuConfig next = new MikuConfig(getConfig(), getLogger());
+        MikuConfig next = new MikuConfig(getConfig(), getLogger(), getServer().getMaxPlayers());
         if (next.storageType != config.storageType) {
             throw new IllegalStateException("storage.type 变更需要重启服务器");
         }

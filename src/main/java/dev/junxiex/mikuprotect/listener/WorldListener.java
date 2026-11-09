@@ -4,7 +4,6 @@ import dev.junxiex.mikuprotect.model.ActionType;
 import dev.junxiex.mikuprotect.model.ActivityRecord;
 import dev.junxiex.mikuprotect.service.RecordingService;
 import dev.junxiex.mikuprotect.util.BlockCodec;
-import dev.junxiex.mikuprotect.util.TileEntityCodec;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -45,7 +44,7 @@ public final class WorldListener implements Listener {
             }
             BlockState oldState = location.getBlock().getState();
             push(location, ActionType.WORLD_PORTAL, player, state.getBlockData(), oldState.getBlockData(),
-                    TileEntityCodec.encode(state), TileEntityCodec.encode(oldState));
+                    state, oldState);
         }
     }
 
@@ -62,22 +61,23 @@ public final class WorldListener implements Listener {
             // 被吸收的液体方块变成空气
             BlockState oldState = location.getBlock().getState();
             push(location, ActionType.BLOCK_ENTITY_CHANGE, null, AIR, oldState.getBlockData(),
-                    null, TileEntityCodec.encode(oldState));
+                    null, oldState);
         }
     }
 
     private void push(Location location, ActionType action, Player player, BlockData now, BlockData before,
-            byte[] meta, byte[] oldMeta) {
+            BlockState metaState, BlockState oldMetaState) {
         if (location == null || location.getWorld() == null || action == null || (now == null && before == null)) {
             return;
         }
         org.bukkit.block.data.BlockData materialData =
                 now != null && now.getMaterial() != Material.AIR ? now : before;
-        recording.record(ActivityRecord.block(location, action,
+        ActivityRecord skeleton = ActivityRecord.block(location, action,
                 player != null ? player.getName() : null,
                 player != null ? player.getUniqueId() : null,
                 BlockCodec.materialKey(materialData), BlockCodec.encode(now), BlockCodec.encode(before),
-                meta, oldMeta));
+                null, null);
+        recording.recordDeferredBlock(skeleton, metaState, oldMetaState);
     }
 
     private static boolean owned(Location location) {
