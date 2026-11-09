@@ -226,7 +226,7 @@ def run_once(args: argparse.Namespace, variant: str, plugins: list[str], run_num
             result.update(parse_result(result_lines[-1]))
             result["status"] = "ok" if done else "result_without_done"
             result["storage_bytes"] = storage_bytes(server_dir)
-            if variant != "baseline" and args.query:
+            if variant != "baseline":
                 query_command = {
                     "mikuprotect": "mp lookup t:5m",
                     "coreprotect": "co lookup t:5m",
